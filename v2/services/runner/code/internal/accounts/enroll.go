@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"syscall"
 )
 
@@ -33,9 +32,13 @@ func LoadProfiles(state string) ([]Profile, error) {
 	return profiles, err
 }
 
+// ErrClaudeTokenImport refuses a Claude subscription token: Lazybox does not
+// store Claude.ai credentials (CLAUDE_COMPLIANCE.md).
+var ErrClaudeTokenImport = errors.New("Lazybox does not store Claude subscription tokens (Anthropic's terms do not allow it; see CLAUDE_COMPLIANCE.md). Save an Anthropic API key in Settings → Agents & workspaces → Claude instead")
+
 // Enroll authenticates only an isolated account. Codex owns its refreshable
-// login store. Claude accepts a subscription setup-token on stdin; a shared
-// macOS Keychain login is deliberately never used as an isolated credential.
+// login store. Claude is refused here: a subscription token would be a
+// Claude.ai credential stored by Lazybox (ErrClaudeTokenImport).
 // Call this on the Runner host, before (re)starting the Runner.
 func Enroll(ctx context.Context, state, id, provider, binary string, token io.Reader, input io.Reader, output, diagnostic io.Writer, labels ...string) (Profile, error) {
 	if !filepath.IsAbs(state) || !profileID.MatchString(id) || (provider != "codex" && provider != "claude") {
@@ -78,37 +81,9 @@ func Enroll(ctx context.Context, state, id, provider, binary string, token io.Re
 		}
 	}()
 	if provider == "claude" {
-		p.Home = filepath.Join(accountDir, "claude")
-		if err = os.Mkdir(p.Home, 0700); err != nil {
-			return Profile{}, err
-		}
-		if err = seedClaudePermissions(p.Home); err != nil {
-			return Profile{}, err
-		}
-		if token == nil {
-			return Profile{}, errors.New("Claude enrollment requires --token-stdin with a Claude subscription setup-token")
-		}
-		data, err := io.ReadAll(io.LimitReader(token, 16385))
-		if err != nil {
-			return Profile{}, err
-		}
-		value := strings.TrimSpace(string(data))
-		if value == "" || len(data) > 16384 || strings.ContainsAny(value, "\r\n\x00") {
-			return Profile{}, errors.New("invalid subscription token input")
-		}
-		p.TokenFile = filepath.Join(accountDir, "oauth-token")
-		f, err := os.OpenFile(p.TokenFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-		if err != nil {
-			return Profile{}, err
-		}
-		_, err = f.WriteString(value)
-		if err == nil {
-			err = f.Sync()
-		}
-		err = errors.Join(err, f.Close())
-		if err != nil {
-			return Profile{}, err
-		}
+		// Anthropic does not let a third-party app collect or store a Claude.ai
+		// credential (CLAUDE_COMPLIANCE.md, R2): no setup-token import.
+		return Profile{}, ErrClaudeTokenImport
 	} else {
 		if token != nil {
 			return Profile{}, errors.New("Codex uses its native browser/device login, not token import")
@@ -188,6 +163,42 @@ func writeProfiles(dir string, profiles []Profile) error {
 
 // StoreProfile commits an already authenticated isolated profile. Existing
 // metadata is never replaced by a login completion or retry.
+// RemoveProfile forgets a saved account: its registry entry and its private
+// folder (the provider's own sign-in, or an imported token). Other accounts
+// and the person's own CLI sign-ins are untouched.
+func RemoveProfile(state, id string) error {
+	if !filepath.IsAbs(state) || !profileID.MatchString(id) {
+		return errors.New("invalid subscription")
+	}
+	dir := filepath.Join(state, "accounts")
+	lock, err := os.OpenFile(filepath.Join(dir, "enrollment.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return errors.New("an enrollment is committing; try again")
+	}
+	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	profiles, err := LoadProfiles(state)
+	if err != nil {
+		return err
+	}
+	kept := profiles[:0]
+	for _, p := range profiles {
+		if p.ID != id {
+			kept = append(kept, p)
+		}
+	}
+	if len(kept) == len(profiles) {
+		return os.ErrNotExist
+	}
+	if err = writeProfiles(dir, kept); err != nil {
+		return err
+	}
+	return os.RemoveAll(filepath.Join(dir, id))
+}
+
 func StoreProfile(state string, p Profile) error {
 	if !filepath.IsAbs(state) || !profileID.MatchString(p.ID) || (p.Provider != "codex" && p.Provider != "claude") || p.Isolation != "environment" || p.Home != filepath.Join(state, "accounts", p.ID, p.Provider) {
 		return errors.New("invalid prepared subscription profile")

@@ -1,8 +1,7 @@
-import { readFile, mkdir, writeFile, rename } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, rename, appendFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnProcessGroup, stopProcessGroup } from './desktop-dev.mjs';
 
 const profiles = new Set(['release', 'core', 'native', 'ui']);
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -54,15 +53,34 @@ export async function loadGateCatalog(root) {
   return { digest: sha(JSON.stringify({ catalog, commands, policyFiles })), gates, external: catalog.external };
 }
 
-export function selectGates(catalog, profile) {
+export function selectGates(catalog, profile, only) {
   if (!profiles.has(profile)) throw new Error('Choose release, core, native or ui');
-  return catalog.gates.filter(gate => profile === 'release' || gate.scope === profile);
+  const gates = catalog.gates.filter(gate => profile === 'release' || gate.scope === profile);
+  if (!only) return gates;
+  // A named subset (one CI shard) must name gates this profile owns: a stale
+  // or misspelled list fails instead of quietly running nothing.
+  const ids = new Set(gates.map(gate => gate.id));
+  const unknown = only.filter(id => !ids.has(id));
+  if (!only.length || unknown.length || new Set(only).size !== only.length) throw new Error(`Gates outside the ${profile} profile or repeated: ${unknown.join(', ') || only.join(', ')}`);
+  return gates.filter(gate => only.includes(gate.id));
+}
+
+// Splits a profile into at most `count` disjoint shards that together hold every
+// gate exactly once, so CI derives its matrix from this catalog, never a copy.
+export function shardGates(gates, count) {
+  if (!Number.isSafeInteger(count) || count < 1) throw new Error('Shard count must be a positive integer');
+  const shards = Array.from({ length: Math.min(count, gates.length) }, () => []);
+  gates.forEach((gate, index) => shards[index % shards.length].push(gate.id));
+  return shards;
 }
 
 // Each gate owns one child process group, including browser/tool descendants.
 // The existing launcher cleanup handles termination; no second supervisor here.
 export async function executeGate(gate, { root, signal, env = process.env }) {
   if (signal?.aborted) return { status: 'cancelled', exitCode: null };
+  // Loaded here, not at module scope: reading the catalog (`list`, `shards`)
+  // must not need installed dependencies, so CI can plan before `npm ci`.
+  const { spawnProcessGroup, stopProcessGroup } = await import('./desktop-dev.mjs');
   // Deterministic qualification never inherits a live Runner/provider opt-in,
   // another source tree, a regression toggle, or a different watcher backend.
   const gateEnv = Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('LAZYBOX_V2_') && !key.startsWith('CHOKIDAR_') && !['TEST_SOURCE', 'TEST_WEBKIT', 'REPRO_OLD_BLUR'].includes(key)));
@@ -93,29 +111,67 @@ export async function executeGate(gate, { root, signal, env = process.env }) {
   }
 }
 
-export async function runGateCatalog(root, profile, { snapshot, execute = executeGate, signal, onProgress = () => {} } = {}) {
-  const catalog = await loadGateCatalog(root), gates = selectGates(catalog, profile);
+// `retryFlaky` (CI's UI shards only, never staging): a UI gate that fails runs
+// once more, and passing then is recorded as `flaky` with both attempts, not as
+// `passed`. The run passes, so one flake does not fail the build, but the
+// receipt, the log and the job summary name it, and a release receipt never
+// admits it (validateReleaseReceipt requires every gate `passed`).
+export async function runGateCatalog(root, profile, { snapshot, execute = executeGate, signal, onProgress = () => {}, only, retryFlaky = false } = {}) {
+  if (retryFlaky && profile !== 'ui') throw new Error('Only UI gates are retried; staging and release runs need a clean first pass');
+  const catalog = await loadGateCatalog(root), gates = selectGates(catalog, profile, only);
   const sourceDigest = await snapshot();
-  const report = { version: 1, profile, catalogDigest: catalog.digest, sourceDigest, startedAt: new Date().toISOString(), platform: process.platform, architecture: process.arch, status: 'running', results: [] };
-  // Run the remaining gates after a failure to give one complete diagnostic.
-  // Cancellation leaves explicit not-run records and never a passing receipt.
-  for (const gate of gates) {
+  const report = { version: 1, profile, ...(only ? { only } : {}), ...(retryFlaky ? { retryFlaky: true } : {}), catalogDigest: catalog.digest, sourceDigest, startedAt: new Date().toISOString(), platform: process.platform, architecture: process.arch, status: 'running', results: [] };
+  const attempt = async gate => {
     const started = performance.now();
-    onProgress({ gate, phase: 'start' });
     let result;
     try { result = signal?.aborted ? { status: 'not-run', exitCode: null } : await execute(gate, { root, signal }); }
     catch (error) { result = { status: 'failed', exitCode: null, error: error.message }; }
-    report.results.push({ id: gate.id, command: gate.command, args: gate.args, ...result, durationMs: Math.round(performance.now() - started) });
-    onProgress({ gate, phase: 'finish', result });
+    return { ...result, durationMs: Math.round(performance.now() - started) };
+  };
+  // Run the remaining gates after a failure to give one complete diagnostic.
+  // Cancellation leaves explicit not-run records and never a passing receipt.
+  for (const gate of gates) {
+    onProgress({ gate, phase: 'start' });
+    let result = await attempt(gate);
+    // Only a plain failure is retried: a deadline or a cancellation is not a flake.
+    if (retryFlaky && gate.scope === 'ui' && result.status === 'failed' && !signal?.aborted) {
+      onProgress({ gate, phase: 'retry', result });
+      const first = result, second = await attempt(gate);
+      const passed = second.status === 'passed' && second.exitCode === 0;
+      result = { ...(passed ? { status: 'flaky', exitCode: 0 } : second), durationMs: first.durationMs + second.durationMs, attempts: [first, second] };
+    }
+    const { durationMs, ...outcome } = result;
+    report.results.push({ id: gate.id, command: gate.command, args: gate.args, ...outcome, durationMs });
+    onProgress({ gate, phase: 'finish', result: outcome });
   }
   report.finalSourceDigest = await snapshot();
   report.finishedAt = new Date().toISOString();
-  report.status = !signal?.aborted && sourceDigest === report.finalSourceDigest && report.results.every(item => item.status === 'passed' && item.exitCode === 0) ? 'passed' : 'failed';
+  const ok = item => (item.status === 'passed' || (retryFlaky && item.status === 'flaky')) && item.exitCode === 0;
+  report.status = !signal?.aborted && sourceDigest === report.finalSourceDigest && report.results.every(ok) ? 'passed' : 'failed';
   return report;
 }
 
+/** Paths added, removed or changed between two `digestTree` file maps, sorted. */
+export function changedFiles(before, after) {
+  return [...new Set([...before.keys(), ...after.keys()])].filter(path => before.get(path) !== after.get(path)).sort();
+}
+
+/** The run in Markdown for a CI job summary: the outcome, then every gate that failed or was flaky. */
+export function summarizeGateReport(report) {
+  const flaky = report.results.filter(item => item.status === 'flaky'), failed = report.results.filter(item => item.status !== 'passed' && item.status !== 'flaky');
+  const lines = [`### Gates: ${report.profile}${report.only ? ` (${report.only.length} named)` : ''}`, '',
+    `**${report.status}**: ${report.results.length} gates, ${report.results.length - flaky.length - failed.length} passed, ${flaky.length} flaky (passed on retry), ${failed.length} failed.`];
+  if (flaky.length || failed.length) {
+    lines.push('', '| Gate | Result | Attempts |', '| --- | --- | --- |');
+    for (const item of [...failed, ...flaky]) lines.push(`| \`${item.id}\` | ${item.status === 'flaky' ? 'flaky (passed on retry)' : item.status} | ${(item.attempts || [item]).map(a => `${a.status} (${Math.round(a.durationMs / 1000)} s)`).join(', ')} |`);
+  }
+  if (report.sourceChanged) lines.push('', `The source changed during the run, so it failed whatever its gates did. A gate must not write the source tree (use \`.cache\` or a temporary directory): ${report.sourceChanged.slice(0, 20).map(path => `\`${path}\``).join(', ')}${report.sourceChanged.length > 20 ? ` and ${report.sourceChanged.length - 20} more` : ''}.`);
+  if (flaky.length) lines.push('', 'A flaky gate failed once and passed when run again. It is a race until its cause is found: reproduce it with `make stress-ui` (RELEASE_GATES.md, "Flake detection").');
+  return lines.join('\n') + '\n';
+}
+
 export function validateReleaseReceipt(report, catalog, sourceDigest) {
-  if (!report || report.version !== 1 || report.profile !== 'release' || report.status !== 'passed' || report.catalogDigest !== catalog.digest || report.sourceDigest !== sourceDigest || report.finalSourceDigest !== sourceDigest || report.results?.length !== catalog.gates.length) throw new Error('Release has no complete passing receipt for this source and current gate catalog; stage again');
+  if (!report || report.version !== 1 || report.profile !== 'release' || report.only !== undefined || report.retryFlaky !== undefined || report.status !== 'passed' || report.catalogDigest !== catalog.digest || report.sourceDigest !== sourceDigest || report.finalSourceDigest !== sourceDigest || report.results?.length !== catalog.gates.length) throw new Error('Release has no complete passing receipt for this source and current gate catalog; stage again');
   for (const [index, gate] of catalog.gates.entries()) {
     const result = report.results[index];
     if (result.id !== gate.id || result.status !== 'passed' || result.exitCode !== 0 || result.command !== gate.command || JSON.stringify(result.args) !== JSON.stringify(gate.args) || !Number.isFinite(result.durationMs) || result.durationMs < 0) throw new Error(`Release gate ${gate.id} is missing, changed or failed`);
@@ -123,24 +179,47 @@ export function validateReleaseReceipt(report, catalog, sourceDigest) {
 }
 
 async function main() {
-  const [action, profile = 'release', ...args] = process.argv.slice(2);
-  if (!['list', 'run'].includes(action) || args.length && (args.length !== 2 || args[0] !== '--report')) throw new Error('Use release-gates.mjs list|run [release|core|native|ui] [--report <path>]');
+  const [action, profile = 'release', ...rest] = process.argv.slice(2);
+  const usage = 'Use release-gates.mjs list [profile] | shards <profile> <count> | run [profile] [--only <id,...>] [--report <path>] [--retry-flaky]';
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const catalog = await loadGateCatalog(root);
-  if (action === 'list') { for (const gate of selectGates(catalog, profile)) console.log(`${gate.id}: ${gate.command} ${gate.args.join(' ')}`); return; }
-  const { digestTree } = await import('./environments.mjs');
+  if (action === 'list' && !rest.length) { for (const gate of selectGates(catalog, profile)) console.log(`${gate.id}: ${gate.command} ${gate.args.join(' ')}`); return; }
+  // GitHub Actions matrix: one entry per shard, each naming its gates.
+  if (action === 'shards' && rest.length === 1) {
+    const shards = shardGates(selectGates(catalog, profile), Number(rest[0]));
+    console.log(JSON.stringify({ include: shards.map((gates, index) => ({ shard: `${index + 1}-of-${shards.length}`, gates: gates.join(',') })) }));
+    return;
+  }
+  if (action !== 'run') throw new Error(usage);
+  const options = {};
+  for (let index = 0; index < rest.length; index += 2) {
+    const [flag, value] = [rest[index], rest[index + 1]];
+    if (flag === '--retry-flaky' && !('retry-flaky' in options)) { options['retry-flaky'] = true; index--; continue; }
+    if (!['--only', '--report'].includes(flag) || !value || value.startsWith('--') || flag.slice(2) in options) throw new Error(usage);
+    options[flag.slice(2)] = value;
+  }
+  const only = options.only?.split(',');
+  const { digestTree, includeSource } = await import('./environments.mjs');
+  // Each snapshot keeps its files' digests, so a run the source changed under names what changed.
+  const snapshots = [], snapshot = () => { const files = new Map(); snapshots.push(files); return digestTree(root, includeSource, files); };
   const controller = new AbortController(), cancel = () => controller.abort();
   process.on('SIGINT', cancel); process.on('SIGTERM', cancel);
   let report;
   try {
-    report = await runGateCatalog(root, profile, { snapshot: () => digestTree(root), signal: controller.signal, onProgress: ({ gate, phase, result }) => console.log(`[${gate.id}] ${phase === 'start' ? 'running' : result.status}`) });
-    const path = resolve(args[1] || join(root, '.cache', `gates-${profile}.json`));
+    const progress = ({ gate, phase, result }) => console.log(`[${gate.id}] ${phase === 'start' ? 'running' : phase === 'retry' ? `${result.status}; running it once more (--retry-flaky)` : result.status === 'flaky' ? 'flaky (passed on retry)' : result.status}`);
+    report = await runGateCatalog(root, profile, { only, retryFlaky: !!options['retry-flaky'], snapshot, signal: controller.signal, onProgress: progress });
+    if (report.sourceDigest !== report.finalSourceDigest) report.sourceChanged = changedFiles(snapshots[0], snapshots.at(-1));
+    const path = resolve(options.report || join(root, '.cache', `gates-${profile}.json`));
     await mkdir(dirname(path), { recursive: true });
     const temporary = `${path}.${randomUUID()}`;
     await writeFile(temporary, JSON.stringify(report, null, 2), { mode: 0o600, flag: 'wx' });
     await rename(temporary, path);
-    console.log(`${report.status}: ${report.results.length} gates. Receipt: ${path}`);
-    if (report.sourceDigest !== report.finalSourceDigest) console.error('Source changed during validation; no release receipt admitted.');
+    const flaky = report.results.filter(item => item.status === 'flaky').map(item => item.id);
+    console.log(`${report.status}: ${report.results.length} gates${flaky.length ? `, ${flaky.length} flaky (passed on retry): ${flaky.join(', ')}` : ''}${report.sourceChanged ? ', the source changed during the run' : ''}. Receipt: ${path}`);
+    // On GitHub Actions a flaky gate is a warning on the run, and every run a job summary.
+    if (process.env.GITHUB_ACTIONS === 'true') for (const id of flaky) console.log(`::warning title=Flaky gate ${id}::${id} failed, then passed on retry. It is a race until its cause is found (RELEASE_GATES.md, "Flake detection").`);
+    if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, summarizeGateReport(report));
+    if (report.sourceChanged) console.error(`Source changed during validation; no release receipt admitted. Changed: ${report.sourceChanged.join(', ') || '(the tree digest only)'}`);
     if (report.status !== 'passed') process.exitCode = 1;
   } finally { process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel); }
 }

@@ -165,3 +165,41 @@ func TestCancelOwnsProcessGroupAndFailedStartIsObserved(t *testing.T) {
 		t.Fatalf("%+v %v", s, err)
 	}
 }
+
+func TestPipeReportIsKeptBesideStatusAndSurvivesRestart(t *testing.T) {
+	dir := t.TempDir()
+	m, err := New(dir, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := m.Register(Spec{SessionID: "fixture", Title: "go test ./..."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Report{ExitCode: 1, OutputBytes: 1 << 20, AgentBytes: 2048, Filter: "go-test", OutputPath: "/state/out.log"}
+	report := want
+	if err = c.FinishPipeWith(nil, &report); err != nil {
+		t.Fatal(err)
+	}
+	report.ExitCode = 9 // the caller's copy is not the record
+	state := c.Status()
+	if state.ExitCode != nil || state.Report == nil || *state.Report != want {
+		t.Fatalf("a pipe's exit must stay unobserved and its report kept: %+v", state)
+	}
+	state.Report.Filter = "mutated"
+	if c.Status().Report.Filter != "go-test" {
+		t.Fatal("Status exposed the command's own report")
+	}
+	if err = m.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := New(dir, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	restored, err := reopened.Get(state.ID)
+	if err != nil || restored.Status().Report == nil || *restored.Status().Report != want {
+		t.Fatalf("report lost across a Runner restart: %v", err)
+	}
+}

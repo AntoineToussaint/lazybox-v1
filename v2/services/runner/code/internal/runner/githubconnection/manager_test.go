@@ -22,6 +22,9 @@ type fakeAPI struct {
 	userID            int64
 	refreshError      error
 	userError         error
+	// gate, when set, holds a refresh until it is closed; started says
+	// that a refresh is waiting on it.
+	gate, started chan struct{}
 }
 
 func (f *fakeAPI) Begin(context.Context, string) (github.Device, error) {
@@ -47,7 +50,15 @@ func (f *fakeAPI) User(context.Context, string) (github.User, error) {
 	}
 	return github.User{ID: id, Login: "fixture"}, f.userError
 }
-func (f *fakeAPI) Refresh(context.Context, string, string) (github.Token, error) {
+func (f *fakeAPI) Refresh(ctx context.Context, _, _ string) (github.Token, error) {
+	if f.gate != nil {
+		f.started <- struct{}{}
+		select {
+		case <-f.gate:
+		case <-ctx.Done():
+			return github.Token{}, ctx.Err()
+		}
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.refreshes++
@@ -399,5 +410,62 @@ func TestPersonalTokenRejectsReplacementAndPreservesSavedCredentialOnFailure(t *
 	m.Close()
 	if _, err := m.ConnectPersonalToken(ctx, "ghp_closed_manager"); err == nil {
 		t.Fatal("used closed manager")
+	}
+}
+
+// A refresh is not the caller's: GitHub rotates both tokens, so a caller
+// that gives up (a cancelled request) must not lose the new pair. The
+// refresh runs on the manager's context, one at a time, and the lock is not
+// held while it is out: other credential uses and the status do not wait.
+func TestCancelledCallerStillSavesTheRotatedPair(t *testing.T) {
+	api := &fakeAPI{gate: make(chan struct{}), started: make(chan struct{}, 1)}
+	m, store := managerTest(t, api)
+	m.mu.Lock()
+	m.saved.Token, m.saved.AuthMethod = token("old"), "github_app"
+	m.saved.User = github.User{ID: 42, Login: "fixture"}
+	m.saved.ExpiresAt = 1
+	m.saved.RefreshExpiresAt = time.Now().Add(time.Hour).Unix()
+	m.mu.Unlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- m.WithCredential(ctx, func(string) error { t.Error("a cancelled caller used a credential"); return nil })
+	}()
+	<-api.started
+	// The lock is free while GitHub answers.
+	statusRead := make(chan struct{})
+	go func() { _ = m.Status(); close(statusRead) }()
+	select {
+	case <-statusRead:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the manager's lock is held across the refresh")
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled caller: %v", err)
+	}
+	// A second caller joins the same refresh rather than starting one.
+	second := make(chan string, 1)
+	go func() {
+		_ = m.WithCredential(context.Background(), func(value string) error { second <- value; return nil })
+	}()
+	close(api.gate)
+	select {
+	case value := <-second:
+		if value != "ghu_new" {
+			t.Fatalf("second caller got %q", value)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the second caller never got the refreshed credential")
+	}
+	if api.refreshes != 1 {
+		t.Fatalf("refreshes: %d", api.refreshes)
+	}
+	data, err := store.Load()
+	if err != nil || !strings.Contains(string(data), "ghu_new") || !strings.Contains(string(data), "ghr_new") || strings.Contains(string(data), "ghr_old") {
+		t.Fatalf("the rotated pair was not saved: %v", err)
+	}
+	if m.Status().State != "connected" {
+		t.Fatalf("state %+v", m.Status())
 	}
 }

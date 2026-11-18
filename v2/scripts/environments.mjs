@@ -7,6 +7,7 @@ import { resolve, dirname, join, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { runnerArguments } from './runner-command.mjs';
+import { registerRunner, userActionsFile } from './user-config.mjs';
 import { loadGateCatalog, validateReleaseReceipt } from './release-gates.mjs';
 import { startDesktopDevServer, desktopDevConfig, stopProcessGroup, spawnProcessGroup } from './desktop-dev.mjs';
 
@@ -29,7 +30,8 @@ const excluded = new Set(['.cache', '.codefly', 'node_modules', 'target', 'dist'
 export function includeSource(relativePath) {
   return !relativePath.split(/[\\/]/).some(part => excluded.has(part) || part === 'runner.config.json' || part === '.env' || part.startsWith('.env.') && part !== '.env.example' || part.endsWith('.log') || part.endsWith('.tsbuildinfo'));
 }
-export async function digestTree(root, filter = includeSource) {
+// `files`, when given, receives each file's own digest, so a caller can name what changed between two snapshots.
+export async function digestTree(root, filter = includeSource, files) {
   const hash = createHash('sha256');
   const walk = async path => {
     for (const name of (await readdir(path)).sort()) {
@@ -38,7 +40,7 @@ export async function digestTree(root, filter = includeSource) {
       const stat = await lstat(full);
       if (stat.isSymbolicLink()) throw new Error(`Source snapshot contains a symlink: ${rel}`);
       if (stat.isDirectory()) await walk(full);
-      else if (stat.isFile()) { hash.update(JSON.stringify([rel, stat.size, stat.mode & 0o111])); hash.update(await readFile(full)); }
+      else if (stat.isFile()) { const header = JSON.stringify([rel, stat.size, stat.mode & 0o111]), data = await readFile(full); hash.update(header); hash.update(data); files?.set(rel, createHash('sha256').update(header).update(data).digest('hex')); }
     }
   };
   await walk(root); return hash.digest('hex');
@@ -81,6 +83,65 @@ async function buildSnippetAdapter(source) {
   const target = join(source, '.cache', 'snippet-adapter');
   await run('cargo', ['build', '-p', 'lazybox-config', '--bin', 'lazybox-snippets'], workspace, {...buildEnv, CARGO_TARGET_DIR:target});
   return join(target, 'debug', 'lazybox-snippets');
+}
+// The CLI agents call (`lazybox run`, `lazybox link`) is built from the same
+// source as the Runner. It is built beside its final path and renamed over
+// it, so an agent never executes a half-written binary.
+const goBuildCLI = (source, output) => run('go', ['build', '-o', output, './cmd/lazybox'], join(source, 'services/runner/code'));
+export async function buildCLI(source, directory, build = goBuildCLI) {
+  await mkdir(directory, { recursive: true });
+  const temporary = join(directory, `.lazybox-${randomUUID()}`);
+  try {
+    await build(source, temporary);
+    await rename(temporary, join(directory, 'lazybox'));
+  } finally {
+    await rm(temporary, { force: true });
+  }
+  return directory;
+}
+// What the CLI is built from: the Runner module's Go files (tests aside) and
+// its go.mod/go.sum. Codefly rebuilds the Runner when they change.
+export function runnerSourceFile(path) {
+  return (path.endsWith('.go') && !path.endsWith('_test.go')) || /(^|\/)go\.(mod|sum)$/.test(path);
+}
+export async function runnerSourceFingerprint(source) {
+  const code = join(source, 'services/runner/code'), hash = createHash('sha256');
+  const walk = async path => {
+    for (const entry of (await readdir(path, { withFileTypes: true })).sort((a, b) => a.name < b.name ? -1 : 1)) {
+      if (entry.name.startsWith('.') || entry.name === 'testdata' || entry.name === 'node_modules') continue;
+      const full = join(path, entry.name), rel = relative(code, full);
+      if (entry.isDirectory()) await walk(full);
+      else if (entry.isFile() && runnerSourceFile(rel)) {
+        try { const stat = await lstat(full); hash.update(JSON.stringify([rel, stat.size, stat.mtimeMs])); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      }
+    }
+  };
+  await walk(code); return hash.digest('hex');
+}
+// Dev builds the CLI at launch, and Codefly rebuilds and restarts the Runner
+// on every Go change: rebuild the CLI with it, or agents run a CLI older than
+// their Runner. The source is polled (directory fs.watch is unreliable on
+// macOS, ui-watch.mjs); a change is built once it has settled for debounce
+// ms. A failed build keeps the previous CLI and is said; it never stops Dev.
+export function watchCLI({ source, directory, since, build = goBuildCLI, interval = 1000, debounce = 1500, log = console.log }) {
+  let last = since, changedAt = 0, pending = false, stopped = false, timer, current = Promise.resolve();
+  const tick = async () => {
+    try {
+      const now = await runnerSourceFingerprint(source);
+      if (last === undefined) last = now;
+      else if (now !== last) { last = now; changedAt = Date.now(); pending = true; }
+      if (pending && !stopped && Date.now() - changedAt >= debounce) {
+        pending = false;
+        await buildCLI(source, directory, build);
+        log('Rebuilt the lazybox CLI agents run, from the Runner source that changed.');
+      }
+    } catch (error) {
+      log(`The lazybox CLI agents run was not rebuilt; the previous one stays: ${error.message}`);
+    }
+  };
+  const loop = () => { if (!stopped) timer = setTimeout(() => { current = tick().finally(loop); }, interval); };
+  loop();
+  return { async close() { stopped = true; clearTimeout(timer); await current; } };
 }
 async function buildDesktop(source, paths, target) {
   await run('npm', ['run', 'build:ui', '-w', '@lazybox/desktop'], source);
@@ -168,6 +229,7 @@ async function stageCandidate(environmentRoot) {
   await copySource(root, source);
   await mkdir(join(source,'resources'),{recursive:true});
   await cp(snippetAdapter,join(source,'resources','lazybox-snippets'));
+  await buildCLI(source, join(source, 'resources', 'bin'));
   await freezeRunnerReload(source);
   const before = await digestTree(source);
   await run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], source);
@@ -176,6 +238,8 @@ async function stageCandidate(environmentRoot) {
   const gateReceipt = JSON.parse(await readFile(receiptPath, 'utf8'));
   validateReleaseReceipt(gateReceipt, await loadGateCatalog(source), before);
   const app = await buildDesktop(source, environmentPaths(environmentRoot, 'working'), join(environmentRoot, 'build', 'working'));
+  // The phone app the Runner's device gateway serves (REMOTE.md).
+  await run('npm', ['run', 'build:web'], source);
   await cp(app, join(destination, 'Lazybox.app'), { recursive: true, force: false, errorOnExist: true });
   const after = await digestTree(source);
   if (before !== after) throw new Error('Validation modified the source snapshot; stage again after reviewing generated changes');
@@ -204,15 +268,48 @@ export async function promote(environmentRoot, id) {
   await saveJSON(currentPath, { id, previous, promotedAt: new Date().toISOString() });
   console.log(`Working release pinned to ${id}. No processes, credentials, or databases were changed. Restart working explicitly to adopt it.`);
 }
+// The Runner's restart contract (services/runner/code/internal/restart): before
+// it exits for a restart the person asked for in the app, it records a request
+// here. Its presence after an exit, and only then, means "start it again".
+export function restartRequestPath(paths) { return join(paths.directory, 'restart-request.json'); }
+export async function takeRestartRequest(path) {
+  let data;
+  try { data = await readFile(path, 'utf8'); }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+  await rm(path, { force: true });
+  try { return JSON.parse(data).version === 1; } catch { return false; }
+}
+// Keep one Runner serving for the life of the environment. start() launches a
+// Runner and resolves once it serves ({ finished }), or undefined when the
+// environment is stopping. A requested restart starts the next Runner without
+// touching the desktop or watchers; any other exit ends the environment as
+// before: a failure throws, a clean exit returns.
+export async function superviseRunner({ start, restartRequest, stopping, onReady = () => {}, log = console.log }) {
+  for (let restarts = 0; ; restarts++) {
+    // A request left by an earlier launch must never turn a later crash into a restart.
+    await rm(restartRequest, { force: true });
+    const run = await start();
+    if (!run) return;
+    if (restarts === 0) await onReady(); else log('Runner restarted. Agents, commands and terminals were re-attached.');
+    const result = await run.finished;
+    if (stopping()) return;
+    if (await takeRestartRequest(restartRequest)) {
+      log('Restart requested from the app: starting the Runner again. Agents, commands and terminals keep running.');
+      continue;
+    }
+    if (result.code !== 0) throw result.failure || new Error(`Runner exited (${result.signal || result.code})`);
+    return;
+  }
+}
 async function launch(environmentRoot, channel) {
   const paths = environmentPaths(environmentRoot, channel);
   const unlock = await acquireLock(paths.lock);
-  let runner, desktop, worker, ui, finished, stopping = false;
+  let runner, desktop, worker, ui, cliWatch, finished, stopping = false;
   const stop = () => { if (stopping) return; stopping = true; runner?.kill('SIGINT'); };
   try {
     const subscriptionState = await sharedSubscriptionState(environmentRoot);
     if (subscriptionState) await checkSubscriptionSelection(environmentRoot, subscriptionState);
-    let source = root, app, snippetAdapter;
+    let source = root, app, snippetAdapter, cliDir;
     if (channel === 'working') {
       const { serviceStatus } = await import('./runner-service.mjs');
       if ((await serviceStatus(environmentRoot)).installed) throw new Error('Working is managed by Codefly. Use make working-client to attach, or runner-service-stop/uninstall before using the terminal launcher.');
@@ -220,9 +317,13 @@ async function launch(environmentRoot, channel) {
       catch { throw new Error('No working release is pinned. Run make stage, then make promote RELEASE=<id>.'); }
       ({ source, app } = await readValidatedRelease(environmentRoot, id));
       snippetAdapter=join(source,'resources','lazybox-snippets');
+      cliDir=join(source,'resources','bin');
     } else {
       snippetAdapter=await buildSnippetAdapter(source);
-      await run('make', ['deps', 'build-worker'], source);
+      const cliSource = await runnerSourceFingerprint(source);
+      cliDir=await buildCLI(source, join(paths.directory, 'bin'));
+      cliWatch = watchCLI({ source, directory: cliDir, since: cliSource });
+      await run('make', ['deps', 'build-worker', 'build-web'], source);
       ui = await startDesktopDevServer(source);
       worker = spawn(join(source, 'node_modules/.bin/tsc'), ['-p', 'workers/claude-sdk', '--watch', '--preserveWatchOutput'], { cwd: source, env: buildEnv, stdio: 'inherit', detached: true });
       worker.on('error', error => { console.error(`Worker watcher failed: ${error.message}`); stop(); });
@@ -231,43 +332,53 @@ async function launch(environmentRoot, channel) {
     try { await writeFile(paths.config, JSON.stringify({ profiles: [] }, null, 2), { flag: 'wx', mode: 0o600 }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
     // Both roots are resolved from the selected environment. Codefly allocates
     // independent ports; neither channel borrows another channel's endpoint.
-    const args = runnerArguments({ paths, source, snippetAdapter, snippetDirectory: channel === 'dev' ? resolve(source, '..') : source, subscriptionState });
-    let previousToken = ''; try { previousToken = JSON.parse(await readFile(paths.endpoint, 'utf8')).token; } catch { /* first launch */ }
-    runner = spawnProcessGroup('codefly', args, { cwd: source, env: buildEnv, stdio: 'inherit' });
-    let exited = false, failure;
-    finished = new Promise(resolve => {
-      runner.once('exit', (code, signal) => { exited = true; resolve({ code, signal }); });
-      runner.once('error', error => { failure = error; exited = true; resolve({ code: 1 }); });
-    });
+    const restartRequest = restartRequestPath(paths);
+    const args = runnerArguments({ paths, source, snippetAdapter, snippetDirectory: channel === 'dev' ? resolve(source, '..') : source, subscriptionState, cliDir, restartRequest, actionsFile: userActionsFile() });
     process.on('SIGINT', stop); process.on('SIGTERM', stop);
-    const deadline = Date.now() + 180_000;
-    let ready = false;
-    while (Date.now() < deadline && !exited && !stopping) {
-      try {
-        const endpoint = JSON.parse(await readFile(paths.endpoint, 'utf8'));
-        if (endpoint.token !== previousToken) {
-          const response = await fetch(endpoint.url + '/lazybox.bench.v1.RunnerService/Info', { method: 'POST', headers: { Authorization: `Bearer ${endpoint.token}`, 'Content-Type': 'application/json', 'Connect-Protocol-Version': '1' }, body: '{}', signal: AbortSignal.timeout(1000) });
-          if (response.ok) {
-            const info = await response.json();
-            if (subscriptionState && !info.sharedSubscriptions) { failure = new Error('This release does not support the selected shared subscription store. Stage and promote an updated release.'); break; }
-            ready = true; break;
+    // One Runner process: spawn it and wait until its new endpoint answers Info.
+    const start = async () => {
+      let previousToken = ''; try { previousToken = JSON.parse(await readFile(paths.endpoint, 'utf8')).token; } catch { /* first launch */ }
+      runner = spawnProcessGroup('codefly', args, { cwd: source, env: buildEnv, stdio: 'inherit' });
+      let exited = false, failure;
+      finished = new Promise(resolve => {
+        runner.once('exit', (code, signal) => { exited = true; resolve({ code, signal, failure }); });
+        runner.once('error', error => { failure = error; exited = true; resolve({ code: 1, failure }); });
+      });
+      if (stopping) runner.kill('SIGINT');
+      const deadline = Date.now() + 180_000;
+      let ready = false;
+      while (Date.now() < deadline && !exited && !stopping) {
+        try {
+          const endpoint = JSON.parse(await readFile(paths.endpoint, 'utf8'));
+          if (endpoint.token !== previousToken) {
+            const response = await fetch(endpoint.url + '/lazybox.bench.v1.RunnerService/Info', { method: 'POST', headers: { Authorization: `Bearer ${endpoint.token}`, 'Content-Type': 'application/json', 'Connect-Protocol-Version': '1' }, body: '{}', signal: AbortSignal.timeout(1000) });
+            if (response.ok) {
+              const info = await response.json();
+              if (subscriptionState && !info.sharedSubscriptions) { failure = new Error('This release does not support the selected shared subscription store. Stage and promote an updated release.'); break; }
+              ready = true; break;
+            }
           }
-        }
-      } catch { /* startup is not yet ready */ }
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
-    if (stopping) return;
-    if (!ready) throw failure || new Error('Runner did not become ready; inspect its startup output');
-    desktop = channel === 'dev'
-      ? spawn(join(source, 'node_modules/.bin/tauri'), ['dev', '--config', JSON.stringify(desktopDevConfig(paths, ui.url)), '--', '--', '--endpoint', paths.endpoint], { cwd: join(source, 'apps/desktop'), env: { ...buildEnv, CARGO_TARGET_DIR: join(environmentRoot, 'build', 'dev') }, stdio: 'inherit', detached: true })
-      : spawn(join(app, 'Contents/MacOS/lazybox-v2-desktop'), ['--endpoint', paths.endpoint], { env: buildEnv, stdio: 'inherit' });
-    desktop.on('error', error => console.error(`Desktop launch failed: ${error.message}`));
-    console.log(`${paths.productName} is running. State: ${paths.state}\nClosing the desktop leaves this Runner alive. Ctrl+C here stops this environment's Runner.`);
-    if (ui) console.log(`Auto reload: Vite refreshes the UI (${ui.watchBackend} watcher), Tauri rebuilds Rust, and Codefly rebuilds/restarts Go. Runner restarts interrupt active Dev executions.`);
-    const result = await finished;
-    if (result.code !== 0 && !stopping) throw failure || new Error(`Runner exited (${result.signal || result.code})`);
+        } catch { /* startup is not yet ready */ }
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      if (stopping) return undefined;
+      if (!ready) throw failure || new Error('Runner did not become ready; inspect its startup output');
+      return { finished };
+    };
+    // The desktop and watchers start once and outlive any requested restart.
+    const onReady = () => {
+      // `lazybox` in any terminal finds this Runner (lazybox runners / --runner).
+      registerRunner(channel, paths).catch(error => console.error(`The lazybox CLI will not find this Runner by name: ${error.message}`));
+      desktop =channel === 'dev'
+        ? spawn(join(source, 'node_modules/.bin/tauri'), ['dev', '--config', JSON.stringify(desktopDevConfig(paths, ui.url)), '--', '--', '--endpoint', paths.endpoint], { cwd: join(source, 'apps/desktop'), env: { ...buildEnv, CARGO_TARGET_DIR: join(environmentRoot, 'build', 'dev') }, stdio: 'inherit', detached: true })
+        : spawn(join(app, 'Contents/MacOS/lazybox-v2-desktop'), ['--endpoint', paths.endpoint], { env: buildEnv, stdio: 'inherit' });
+      desktop.on('error', error => console.error(`Desktop launch failed: ${error.message}`));
+      console.log(`${paths.productName} is running. State: ${paths.state}\nClosing the desktop leaves this Runner alive. Ctrl+C here stops this environment's Runner; Restart Runner in the app starts it again here.`);
+      if (ui) console.log(`Auto reload: Vite refreshes the UI (${ui.watchBackend} watcher), Tauri rebuilds Rust, Codefly rebuilds/restarts Go, and the lazybox CLI agents run is rebuilt with it. A Runner restart does not stop Dev agents or their managed commands: the restarted Runner re-attaches to their session hosts.`);
+    };
+    await superviseRunner({ start, restartRequest, stopping: () => stopping, onReady });
   } finally {
-    await Promise.all([stopProcessGroup(channel === 'dev' ? desktop : undefined), stopProcessGroup(worker)]);
+    await Promise.all([stopProcessGroup(channel === 'dev' ? desktop : undefined), stopProcessGroup(worker), cliWatch?.close()]);
     await ui?.server.close();
     runner?.kill('SIGINT');
     if (finished) await finished;

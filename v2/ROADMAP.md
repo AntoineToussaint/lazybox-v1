@@ -7,14 +7,14 @@ V2 008 now has a runnable Codefly Runner implementation. [Runtime evidence](RUNT
 ## Current delivery order — development from a phone, 2026-11-09
 
 The [implementation package plan](IMPLEMENTATION_ROADMAP.md) now defines owners,
-Codefly/Obin reuse, dependencies, acceptance gates and implementation status for
+Codefly/Hub platform reuse, dependencies, acceptance gates and implementation status for
 P00–P12. P01 starts with a Codefly-managed Working Runner and independent client
 attachment; this does not complete crash recovery or remote/mobile admission.
 
 The goal is **complete real development work from a phone**, with appropriate
 iPad, laptop and multi-display experiences over the same durable work. Mobile
 interaction and remote continuity are requirements now. The Hub is implemented
-in **Obin platform V2**; Lazybox owns its clients and Runner and must validate
+in **a separate platform**; Lazybox owns its clients and Runner and must validate
 their integration with it.
 
 The [November 9 audit](audits/2026-11-09/README.md) distinguishes main source,
@@ -24,11 +24,11 @@ device-specific flows and complete acceptance journey.
 
 | Order | Deliverable | Owning boundary | Admission evidence |
 | --- | --- | --- | --- |
-| R0 Portable contract and UX baseline | Phone Inbox/Work/review, adaptive iPad, desktop panels; work/assignment/result/attention identities and a two-repository fixture. | Shared client core and platform hosts; contract agreed with Obin. | Same scenario at phone/tablet/desktop sizes, explicit stale/offline/failure states, measured single-agent baseline. |
-| R1 Safe remote execution | Distinct human/Runner/attempt principals, scoped tools, enrolled always-on Runner, durable receipts, owned resources and bounded admission. | Obin authority/control; Runner admission/lifecycle. | Fix audit F1/F2/F4: no agent approval bypass, no dispatch against missing accepted dependencies, no duplicate starts; crash cleanup or explicit unresolved ownership; no owner credential on phone or in agent context. |
-| R2 Complete phone development | Start work, answer durable questions, direct one writer, independently review commits/tests/preview, request revisions and integrate. | Phone, shared core, Runner artifacts, Obin work/attention/integration. | Real phone and remote Runner with laptop closed; two-device answer conflict, app loss/reconnect, stale result and partial/lost integration acknowledgement without repeated effects. |
+| R0 Portable contract and UX baseline | Phone Inbox/Work/review, adaptive iPad, desktop panels; work/assignment/result/attention identities and a two-repository fixture. | Shared client core and platform hosts; contract agreed with the Hub platform. | Same scenario at phone/tablet/desktop sizes, explicit stale/offline/failure states, measured single-agent baseline. |
+| R1 Safe remote execution | Distinct human/Runner/attempt principals, scoped tools, enrolled always-on Runner, durable receipts, owned resources and bounded admission. | Hub platform authority/control; Runner admission/lifecycle. | Fix audit F1/F2/F4: no agent approval bypass, no dispatch against missing accepted dependencies, no duplicate starts; crash cleanup or explicit unresolved ownership; no owner credential on phone or in agent context. |
+| R2 Complete phone development | Start work, answer durable questions, direct one writer, independently review commits/tests/preview, request revisions and integrate. | Phone, shared core, Runner artifacts, Hub work/attention/integration. | Real phone and remote Runner with laptop closed; two-device answer conflict, app loss/reconnect, stale result and partial/lost integration acknowledgement without repeated effects. |
 | R3 Device depth and handoff | iPad conversation beside evidence, desktop multi-display restoration, focused file edits and scoped interactive shell, useful context/cost detail. | Device-specific compositions over common commands/models. | Real iPad multitasking, touch/keyboard/large text, phone-to-desktop handoff with local layouts preserved, editor/shell ownership and cancellation. |
-| R4 Measured parallel coordination | Per-assignment working copies, durable delivery, configured role/model/effort/budgets, bounded dependency-ready dispatch. | Runner resource/scheduling owners and Obin assignments. | Compare outcome/cost against sequential baseline; conflicting edits, changed decisions, exhaustion and one crashed worker do not lose work or duplicate publication. |
+| R4 Measured parallel coordination | Per-assignment working copies, durable delivery, configured role/model/effort/budgets, bounded dependency-ready dispatch. | Runner resource/scheduling owners and Hub assignments. | Compare outcome/cost against sequential baseline; conflicting edits, changed decisions, exhaustion and one crashed worker do not lose work or duplicate publication. |
 
 R0 UX and contract work starts alongside R1 engineering. Exercise tablet/desktop
 views throughout R2; R3 deepens them. Role policies and durable communication
@@ -40,7 +40,7 @@ Runner, two repositories, Claude/Codex support, sequential writing and independe
 review. Execution does not depend on a client window. A sleeping laptop Runner
 does not silently migrate native conversations.
 
-**Implementation order:** qualify existing Obin contracts and start independent
+**Implementation order:** qualify existing Hub platform contracts and start independent
 Runner lifecycle through Codefly; make release gates reproducible; fix authority,
 dependency and resource lifetime; connect the Hub's durable agents and assignments;
 deliver phone Inbox, Work and review/integration. Keep desktop behavior covered
@@ -60,6 +60,15 @@ The M0–M8 catalog remains historical scope inventory. M1 does not authorize a
 second Hub here, and V2 805 no longer postpones mobile until after a desktop MVP.
 No R0–R4 outcome is marked complete by this audit.
 
+**Proposal, 2026-11-17:** [Mobile client, cloud backend and the Hub](MOBILE_CLOUD_HUB.md)
+surveys the state of the art and proposes an Expo iPhone app, an end-to-end-encrypted
+relay and a phased Hub (V2 805, V2 806); its decisions are open.
+
+**Proposal, 2026-11-17:** [Runners on other computers](REMOTE_RUNNERS.md)
+designs the full Lazybox experience on a remote machine (a VM, a cloud box,
+a second Mac, a devcontainer): owner and device access, one `RunnerLink` over
+SSH, the tailnet, the relay or the Hub, the Linux Runner, and phases P0–P3.
+
 ## November 3 delivery review (historical)
 
 <a id="current-delivery-order--critical-review-2026-11-03"></a>
@@ -70,7 +79,7 @@ above supersedes its mobile deferral and delivery order.
 The immediate goal is **one person reliably delivering a coordinated change
 across repositories with Claude and Codex**. Agent count, number of panels and
 number of generated PRs are not success measures. The future shared Hub belongs
-in **Obin platform V2**, not this repository. The M0–M8 catalog below is retained
+in **a separate platform**, not this repository. The M0–M8 catalog below is retained
 as a long-term dependency inventory; it is not the current implementation order.
 Its older requirement to implement a local Hub before dogfooding is superseded.
 
@@ -97,7 +106,7 @@ and dependency-freshness defects. See the
 | L1 Durable coordinated work | A coordinator proposes bounded work; one worker executes; an independent reviewer checks it. | Workspace coordination module, transactional state/command receipts/change log, scoped tools, versioned context packet, persisted role/model policy; one writer per mutable checkout. | Restart at each start/ack boundary; duplicate starts; changed decisions; interrupted worker; deleted chat; no lost task or silent duplicate writer. |
 | L2 Verified delivery | The objective reaches the intended repository state. | Result bound to repository commit vector and captured tests; separate review, acceptance and integration states; explicit base selection in diff UI. | Change a reviewed commit and observe invalidation. Complete dependent changes in two controlled repositories; record partial integration and a lost merge response without duplicate publication. |
 | L3 Bounded parallelism | Parallel work improves outcomes without corrupting shared state. | Per-assignment working copies for independent writers; dependency-ready queue, aggregate resource/cost limits, durable notifications, explicit delegation depth and cancellation ownership. | Two independent writers plus review, conflicting edits, resource contention and one crashed worker; compare against L1 baseline before raising concurrency. |
-| L4 Obin Hub integration | Share canonical work and coordinate across workspaces/people. | External work references, scoped commands/events, artifact availability, identity and assignment authority supplied by Obin platform V2. | Contract tests against the real Hub; duplicate tracker links, disconnected Runner, stale assignment, device handoff and one authoritative owner per record. |
+| L4 External Hub integration | Share canonical work and coordinate across workspaces/people. | External work references, scoped commands/events, artifact availability, identity and assignment authority supplied by the Hub platform. | Contract tests against the real Hub; duplicate tracker links, disconnected Runner, stale assignment, device handoff and one authoritative owner per record. |
 
 L1 and L2 form the first useful local coordination release. L3 is not a
 prerequisite for it. Ordinary single-agent work stays direct; coordination is
@@ -328,7 +337,7 @@ from task state, and all records must outlive an individual agent conversation.
 
 Expose this through a small Runner-owned contract, independently testable with
 headless planners and event replay. Do not build a Hub in this repository: the
-cross-workspace coordination authority belongs to Obin platform V2. A tool named
+cross-workspace coordination authority belongs to the external Hub. A tool named
 for requesting coordination must not silently perform Git synchronization.
 Interactive workspace PTYs and a full snippet manager remain separate missing
 capabilities; favorites/catalog search do not constitute either implementation.

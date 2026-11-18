@@ -2,10 +2,23 @@
 
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fs, path::Path};
+mod appearance;
+mod attention;
+mod capture;
+mod feedback;
 mod host;
 mod layout;
+mod links;
 mod placement;
+mod release;
+mod runners;
+mod sounds;
+mod terminal;
+mod title_bar;
+mod updates;
+mod viewer;
 mod viewstate;
+mod voice;
 
 const RPC_PATH: &str = "/lazybox.bench.v1.RunnerService/";
 
@@ -39,18 +52,24 @@ impl Bootstrap {
         Ok(config)
     }
 
-    // Codefly keeps this invocation's port while replacing its Go process.
-    // Accept its new bearer only from the already-selected private locator;
-    // moving to another origin requires a new launch and a new HTTP scope.
-    fn refreshed(&self, path: &Path) -> Result<Self, Box<dyn Error>> {
+    // The Runner this window was opened on, as its private locator names it
+    // now. Every restart gives it a new bearer: Codefly keeps the port on a
+    // hot reload, a launcher restart gets a new one. Both are the same Runner
+    // (its persistent identity), so its new bearer and origin are followed
+    // whether or not the restart was requested from this app; the host
+    // installs the new origin's HTTP scope first. A locator naming another
+    // Runner is never followed, and a Runner that reports no identity is
+    // followed to a new origin only by an explicit reconnect.
+    fn followed(&self, path: &Path) -> Result<Self, Box<dyn Error>> {
         let next = Self::read(path)?;
         if !self.runner_id.is_empty() && self.runner_id != next.runner_id {
             return Err("Runner identity changed; open this connection in a new app launch".into());
         }
-        if next.url != self.url {
-            return Err("Runner address changed; relaunch Dev to select its new origin".into());
+        if next.url != self.url && self.runner_id.is_empty() {
+            return Err("Runner address changed; use Reconnect this window to follow it".into());
         }
         Ok(Self {
+            url: next.url,
             token: next.token,
             ..self.clone()
         })
@@ -68,6 +87,15 @@ impl Bootstrap {
             token: next.token,
             ..self.clone()
         })
+    }
+
+    // After a requested restart, the successor is the Runner the same locator
+    // names with a bearer other than the stopping one's (`previous`). Until it
+    // writes its locator there is nothing to adopt; once it has, it may serve
+    // on a newly allocated origin, accepted exactly as an explicit reconnect.
+    fn restarted(&self, path: &Path, previous: &str) -> Result<Option<Self>, Box<dyn Error>> {
+        let next = self.reconnected(path)?;
+        Ok((next.token != previous).then_some(next))
     }
 }
 
@@ -94,7 +122,14 @@ fn validate_endpoint(value: &str) -> Result<String, Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let application = tauri::Builder::default()
+    let context = tauri::generate_context!();
+    // Only a release build carries an updater configuration (updates.rs).
+    let updater = updates::configured(context.config());
+    let mut builder = tauri::Builder::default();
+    if updater {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    let application = builder
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             host::second_instance(app, args)
         }))
@@ -102,25 +137,94 @@ fn main() -> Result<(), Box<dyn Error>> {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .manage(attention::Attention::default())
+        .manage(runners::Runners::default())
+        .manage(links::Links::default())
+        .manage(viewer::Viewers::default())
+        .manage(updates::Pending::default())
         .invoke_handler(tauri::generate_handler![
             host::runner_bootstrap,
+            runners::runner_list,
+            runners::runner_add,
+            runners::runner_forget,
+            links::remote_hosts,
+            links::remote_add,
+            links::remote_remove,
             host::save_view_state,
             host::open_sign_in,
+            host::open_link,
+            host::open_web_window,
+            host::dock_web,
+            viewer::web_view_show,
+            viewer::web_view_hide,
+            viewer::web_view_navigate,
+            viewer::web_view_zoom,
+            viewer::web_view_action,
+            viewer::web_view_reset,
             host::copy_sign_in_code,
             host::choose_repository_folder,
             host::save_surface,
             host::open_console,
             host::open_chat,
             host::open_workspace,
+            host::open_artifact,
             host::dock_chat,
+            host::return_chat,
+            host::chat_window_open,
             host::reopen_agent,
+            host::set_action_menu,
             host::reopen_closed,
-            host::reconnect_view
+            host::reconnect_view,
+            host::expect_runner_restart,
+            attention::notify_attention,
+            attention::take_attention_destination,
+            attention::set_attention_badge,
+            terminal::terminal_apps,
+            terminal::open_terminal,
+            sounds::play_system_sound,
+            title_bar::title_bar,
+            title_bar::title_bar_drag,
+            title_bar::title_bar_double_click,
+            capture::capture_window,
+            capture::focus_window,
+            appearance::ui_zoom,
+            appearance::set_ui_zoom,
+            appearance::share_preference,
+            release::app_info,
+            release::setup_state,
+            release::setup_install,
+            release::setup_start,
+            release::setup_finish,
+            release::run_doctor,
+            release::link_cli,
+            release::remove_older_lazybox,
+            release::show_runner_log,
+            updates::check_for_update,
+            updates::install_update,
+            feedback::feedback_diagnostics,
+            feedback::save_feedback,
+            voice::voice_status,
+            voice::voice_request_permission,
+            voice::voice_languages,
+            voice::voice_open_settings,
+            voice::voice_start,
+            voice::voice_stop,
+            voice::voice_cancel,
+            voice::speech_voices,
+            voice::speech_speak,
+            voice::speech_stop,
+            voice::speech_speaking
         ])
-        .setup(host::setup)
+        .setup(|app| {
+            // Measured here, on the main thread, before any window is built.
+            title_bar::buttons();
+            attention::setup(app.handle())?;
+            host::setup(app)
+        })
         .on_window_event(host::window_event)
         .on_menu_event(|app, event| host::menu_event(app, event.id().as_ref()))
-        .build(tauri::generate_context!())?;
+        .build(context)?;
     application.run(|app, event| match event {
         tauri::RunEvent::ExitRequested {
             code: None, api, ..
@@ -128,7 +232,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         tauri::RunEvent::ExitRequested { code: Some(_), .. } => {
             host::finish(app);
         }
-        tauri::RunEvent::Exit => host::finish(app),
+        tauri::RunEvent::Exit => {
+            host::finish(app);
+            links::stop_all(app);
+        }
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen {
             has_visible_windows: false,
@@ -226,7 +333,7 @@ mod tests {
             r#"{"url":"http://127.0.0.1:43210","token":"new"}"#,
         )
         .expect("write");
-        let next = first.refreshed(file.path()).expect("reload");
+        let next = first.followed(file.path()).expect("reload");
         assert_eq!(next.token, "new");
         assert_eq!(next.session_id, first.session_id);
         assert_eq!(next.working_directory, first.working_directory);
@@ -236,9 +343,50 @@ mod tests {
             "partial",
         ] {
             fs::write(file.path(), invalid).expect("write");
-            assert!(first.refreshed(file.path()).is_err());
+            assert!(first.followed(file.path()).is_err());
         }
         assert_eq!(first.token, "old");
+    }
+
+    #[test]
+    fn an_identified_runner_is_followed_to_a_new_origin_without_a_requested_restart() {
+        let file = tempfile::NamedTempFile::new().expect("fixture");
+        let old = Bootstrap {
+            url: "http://127.0.0.1:12345".into(),
+            token: "before".into(),
+            runner_id: "runneridentity0001".into(),
+            working_directory: "/fixture".into(),
+            session_id: "saved".into(),
+        };
+        // A hot reload: same port, new bearer.
+        fs::write(
+            file.path(),
+            r#"{"url":"http://127.0.0.1:12345","token":"reloaded","runnerId":"runneridentity0001"}"#,
+        )
+        .expect("write");
+        let next = old.followed(file.path()).expect("hot reload");
+        assert_eq!(next.url, "http://127.0.0.1:12345");
+        assert_eq!(next.token, "reloaded");
+        // A launcher restart nobody armed: new port, new bearer, same Runner.
+        fs::write(
+            file.path(),
+            r#"{"url":"http://127.0.0.1:23456","token":"restarted","runnerId":"runneridentity0001"}"#,
+        )
+        .expect("write");
+        let next = old.followed(file.path()).expect("restart on a new port");
+        assert_eq!(next.url, "http://127.0.0.1:23456");
+        assert_eq!(next.token, "restarted");
+        assert_eq!(next.session_id, "saved");
+        assert_eq!(next.working_directory, "/fixture");
+        // Another Runner, a non-loopback origin or an empty bearer is never followed.
+        for invalid in [
+            r#"{"url":"http://127.0.0.1:23456","token":"other","runnerId":"someotherrunner0002"}"#,
+            r#"{"url":"http://example.com:23456","token":"other","runnerId":"runneridentity0001"}"#,
+            r#"{"url":"http://127.0.0.1:23456","token":"","runnerId":"runneridentity0001"}"#,
+        ] {
+            fs::write(file.path(), invalid).expect("write");
+            assert!(old.followed(file.path()).is_err(), "{invalid}");
+        }
     }
 
     #[test]
@@ -266,5 +414,49 @@ mod tests {
         )
         .expect("write");
         assert!(old.reconnected(file.path()).is_err());
+    }
+
+    #[test]
+    fn requested_restart_follows_only_the_successor_the_same_locator_names() {
+        let file = tempfile::NamedTempFile::new().expect("fixture");
+        let old = Bootstrap {
+            url: "http://127.0.0.1:12345".into(),
+            token: "stopping".into(),
+            runner_id: "runneridentity0001".into(),
+            working_directory: "/fixture".into(),
+            session_id: "saved".into(),
+        };
+        // The stopping Runner's locator: nothing to adopt yet.
+        fs::write(
+            file.path(),
+            r#"{"url":"http://127.0.0.1:12345","token":"stopping","runnerId":"runneridentity0001"}"#,
+        )
+        .expect("write");
+        assert!(
+            old.restarted(file.path(), "stopping")
+                .expect("read")
+                .is_none()
+        );
+        // Its successor, on a newly allocated port, is adopted with the saved target.
+        fs::write(
+            file.path(),
+            r#"{"url":"http://127.0.0.1:23456","token":"successor","runnerId":"runneridentity0001"}"#,
+        )
+        .expect("write");
+        let next = old
+            .restarted(file.path(), "stopping")
+            .expect("read")
+            .expect("successor");
+        assert_eq!(next.url, "http://127.0.0.1:23456");
+        assert_eq!(next.token, "successor");
+        assert_eq!(next.session_id, "saved");
+        // Another Runner's identity or a non-loopback origin is never followed.
+        for invalid in [
+            r#"{"url":"http://127.0.0.1:23456","token":"other","runnerId":"someotherrunner0002"}"#,
+            r#"{"url":"http://example.com:23456","token":"other","runnerId":"runneridentity0001"}"#,
+        ] {
+            fs::write(file.path(), invalid).expect("write");
+            assert!(old.restarted(file.path(), "stopping").is_err());
+        }
     }
 }

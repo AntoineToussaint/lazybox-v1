@@ -1,12 +1,13 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
-import {chromium,webkit,expect} from '@playwright/test';
+import {chromium,webkit,expect} from './fixtures/playwright.mjs';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const fixture=await startRunnerFixture();
 const regression=process.env.REPRO_OLD_BLUR?{name:'reproduce-old-blur',enforce:'pre',transform(code,id){if(id.endsWith('/CollectionPanel.tsx'))return code.replace('<details className="workspace-actions"','<details className="workspace-actions" onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget as Node))event.currentTarget.open=false;}}');}}:null;
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[regression,react()].filter(Boolean),server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[regression,react()].filter(Boolean),server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 let browser;
 try{
  await server.listen();browser=await(process.env.TEST_WEBKIT?webkit:chromium).launch({headless:true});const page=await browser.newPage({viewport:{width:1250,height:900}});page.setDefaultTimeout(8000);
@@ -32,11 +33,12 @@ try{
  await page.getByLabel('Actions for Alpha feature',{exact:true}).click();await page.getByRole('button',{name:'Delete workspace…',exact:true}).click();await expect(dialog).toBeVisible();await expect(dialog.getByRole('textbox')).toHaveCount(0);await expect(dialog.getByRole('button',{name:'Delete workspace',exact:true})).toBeEnabled();await page.screenshot({path:'/tmp/lazybox-workspace-delete-clean.png'});await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(dialog).toHaveCount(0);assert.equal(fixture.mutations.filter(m=>m.method==='DeleteWorkspace').length,1);
 // Right-click, keyboard dismissal, outside click, and narrow viewport placement.
 const alpha=rows.first();
+// A right-click opens the row's actions (the ⋯ menu's list) at the pointer, as a Lazybox menu.
 await alpha.click({button:'right'});
-await expect(alpha.locator('.action-popover')).toBeVisible();
-await page.keyboard.press('End');await expect(deleteAction).toBeFocused();
-await page.keyboard.press('Escape');await expect(alpha.locator('summary')).toBeFocused();
-await expect(alpha.locator('.action-popover')).not.toBeVisible();
+const contextMenu=page.locator('.context-menu[data-depth="0"]'),contextDelete=contextMenu.getByRole('menuitem',{name:'Delete workspace…',exact:true});
+await expect(contextMenu).toBeVisible();await expect(alpha.locator('.action-popover')).not.toBeVisible();
+await page.keyboard.press('End');await expect(contextDelete).toBeFocused();
+await page.keyboard.press('Escape');await expect(contextMenu).toHaveCount(0);
 await alpha.locator('summary').click();await page.locator('.explorer-heading').first().click();
 await expect(alpha.locator('.action-popover')).not.toBeVisible();
 for(const viewport of [{width:900,height:420},{width:390,height:640}]){

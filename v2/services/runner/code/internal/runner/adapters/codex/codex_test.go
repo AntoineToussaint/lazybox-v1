@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -35,15 +37,30 @@ func TestExplicitThreadPermissionChoice(t *testing.T) {
 	}
 }
 
-func TestInputsDeliverGenericFileReferencesAlongsideNativeImages(t *testing.T) {
-	op := agent.Operation{Text: "Read these", Files: []agent.File{{Name: "source.go", Path: "/resolved/attachment/source.go", MediaType: "text/plain", Size: 10}}, Images: []agent.Image{{MediaType: "image/png", Data: "image-data"}}}
+func TestInputsDeliverTextImagesAndFilesInOrder(t *testing.T) {
+	paste := filepath.Join(t.TempDir(), "paste.txt")
+	if err := os.WriteFile(paste, []byte("panic: boom\ngoroutine 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	op := agent.Operation{Text: "Read these", Files: []agent.File{
+		{Name: "shot.png", MediaType: "image/png", Path: "/r/shot.png", Size: 10, Delivery: agent.DeliverImage},
+		{Name: "Pasted text.txt", MediaType: "text/plain", Path: paste, Size: 24, Delivery: agent.DeliverText},
+		{Name: "report.pdf", Path: "/resolved/attachment/report.pdf", MediaType: "application/pdf", Size: 10, Delivery: agent.DeliverFile},
+	}, Images: []agent.Image{{MediaType: "image/png", Data: "image-data"}}}
 	data, err := json.Marshal(inputs(op))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var blocks []map[string]string
-	if json.Unmarshal(data, &blocks) != nil || len(blocks) != 2 || !strings.Contains(blocks[0]["text"], "/resolved/attachment/source.go") || blocks[1]["type"] != "image" || blocks[1]["url"] != "data:image/png;base64,image-data" {
-		t.Fatalf("missing generic or image input: %s", data)
+	if json.Unmarshal(data, &blocks) != nil || len(blocks) != 4 {
+		t.Fatalf("inputs: %s", data)
+	}
+	// turn/start takes text and images: the text first, then each attachment
+	// in order, a pasted text as a fenced block and a PDF by its path.
+	if blocks[0]["text"] != "Read these" || blocks[1]["type"] != "image" || blocks[1]["url"] != "data:image/png;base64,image-data" ||
+		blocks[2]["type"] != "text" || blocks[2]["text"] != "Attached file \"Pasted text.txt\" (2 lines):\n```\npanic: boom\ngoroutine 1\n```" ||
+		blocks[3]["type"] != "text" || !strings.Contains(blocks[3]["text"], `"/resolved/attachment/report.pdf"`) {
+		t.Fatalf("inputs out of order or dropped: %s", data)
 	}
 }
 
@@ -84,5 +101,35 @@ func TestYOLOIsExplicitAndContextIsNativeDeveloperInstructions(t *testing.T) {
 	}
 	if _, ok := p["approvalPolicy"]; ok {
 		t.Fatal("inherit overrode approvals", p)
+	}
+}
+
+func TestLivePermissionChangesApplyToFollowingTurns(t *testing.T) {
+	s := &session{}
+	if !s.Capabilities().LivePermission {
+		t.Fatal("Codex turns accept new approval and sandbox policies")
+	}
+	if _, err := s.Apply(context.Background(), agent.Operation{ID: "p", Kind: agent.Permission, Permission: "yolo"}); err != nil {
+		t.Fatal(err)
+	}
+	if string(s.overrides["approvalPolicy"]) != `"never"` || string(s.overrides["sandboxPolicy"]) != `{"type":"dangerFullAccess"}` {
+		t.Fatalf("YOLO policies not kept for turn/start: %s", s.overrides)
+	}
+	if _, err := s.Apply(context.Background(), agent.Operation{ID: "q", Kind: agent.Permission, Permission: "read-only"}); err != nil {
+		t.Fatal(err)
+	}
+	if string(s.overrides["sandboxPolicy"]) != `{"type":"readOnly"}` {
+		t.Fatalf("later change must replace the earlier one: %s", s.overrides)
+	}
+	if _, err := s.Apply(context.Background(), agent.Operation{ID: "r", Kind: agent.Permission, Permission: "inherit"}); err == nil {
+		t.Fatal("unknown mode accepted")
+	}
+}
+
+func TestInstructionUpdateIsItsOwnInputAheadOfTheMessage(t *testing.T) {
+	items := inputs(agent.Operation{Kind: agent.Message, Text: "hello", Context: "new instructions"})
+	data, _ := json.Marshal(items)
+	if string(data) != `[{"text":"new instructions","type":"text"},{"text":"hello","type":"text"}]` {
+		t.Fatalf("%s", data)
 	}
 }

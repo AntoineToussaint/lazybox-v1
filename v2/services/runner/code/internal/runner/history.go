@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,15 +57,17 @@ func profileBinding(p accounts.Profile) string {
 }
 func (b *Bench) restore(r sessionstore.Record) (*Execution, error) {
 	// Use an immutable read view; recovery must never append to an old execution.
-	spool, err := journal.OpenExisting(filepath.Join(b.Config.State, "sessions", r.ID+".jsonl"), b.Config.EventBudget)
+	// A journal that cannot be read in full still leaves the conversation
+	// listed, readable up to the damage, and deletable: the fault says why.
+	spool, err := b.readJournal(r.ID)
 	if err != nil {
-		return nil, err
+		spool = journal.Unreadable(err)
 	}
 	spool.Close()
 	state := r.Snapshot
 	uncertain := !state.Closed || state.Fault == "native_exit_unconfirmed"
 	for _, c := range b.Commands.List(r.ID) {
-		if c.Error == "command ownership unconfirmed after Runner restart" || c.CleanupUnconfirmed() {
+		if c.OwnershipUnconfirmed() {
 			uncertain = true
 		}
 	}
@@ -73,9 +75,17 @@ func (b *Bench) restore(r sessionstore.Record) (*Execution, error) {
 		state.Status = agent.Interrupted
 		state.Fault = ""
 	}
+	if damage := spool.Damage(); damage != nil {
+		state.Fault = fmt.Sprintf("transcript unreadable past cursor %d: %v", spool.Count(), damage)
+	}
 	state.Closed = true
 	state.Busy = false
 	state.Queued = 0
+	state.QueuedMessages = nil
+	// Messages a lost agent never received still wait: resuming delivers them.
+	if queue, err := b.loadCarried(r.ID); err == nil && len(queue) > 0 {
+		state.Queued, state.QueuedMessages = len(queue), engine.QueuedMessages(queue, nil)
+	}
 	state.Pending = map[string]agent.Event{}
 	for id, a := range state.Agents {
 		if a.Status == agent.Running || a.Status == agent.Starting || a.Status == agent.WaitingInput || a.Status == agent.WaitingApproval {
@@ -114,8 +124,25 @@ func (b *Bench) Resume(ctx context.Context, id string, processesStopped bool) (*
 		return nil, errors.New("previous process ownership is unconfirmed; stop/reconcile its agent and commands before resuming")
 	}
 	state := e.Engine.Snapshot()
-	if !e.Archived && (!state.Closed || state.Fault == "native_exit_unconfirmed") {
+	if live, ok := e.Engine.(*engine.Engine); ok && !e.Archived && !state.Closed && agent.TransportFault(state.Fault) {
+		return b.reconnect(ctx, e, live, processesStopped)
+	}
+	// Its native process exited (the exit was observed): there is nothing to
+	// re-attach. Its session is over; the provider's conversation goes on in
+	// a new process below, as for any ended session.
+	if !e.Archived && !state.Closed && state.Fault == agent.ProcessExitFault {
+		if err := e.Engine.Close(); err != nil {
+			return nil, fmt.Errorf("could not end the session whose agent exited: %w", err)
+		}
+		state = e.Engine.Snapshot()
+	}
+	if !e.Archived && !state.Closed {
 		return nil, errors.New("end the existing session before resuming; an active session can be reattached")
+	}
+	// Its agent's exit could not be confirmed: the person confirms it (they
+	// stopped it, or it is gone), as for a conversation that needs recovery.
+	if !e.Archived && state.Fault == "native_exit_unconfirmed" && !processesStopped {
+		return nil, errors.New("the previous agent's exit is unconfirmed; stop it, then resume confirming it is stopped")
 	}
 	for _, c := range b.Commands.List(id) {
 		if !c.Done {
@@ -155,41 +182,80 @@ func (b *Bench) Resume(ctx context.Context, id string, processesStopped bool) (*
 	}
 	// Collection ownership reconciliation remains with its manager. No forceful
 	// lease takeover is implied by a resume request.
-	return b.open(profile.ID, saved.Cwd, state.Reference, saved.Options, saved.GatewayID, saved.WorkID, id, saved.CollectionID, saved.Purpose, saved.Context, false)
+	next, err := b.open(profile.ID, saved.Cwd, state.Reference, saved.Options, saved.GatewayID, saved.WorkID, id, saved.CollectionID, saved.Purpose, saved.Context, false)
+	if err != nil {
+		return nil, err
+	}
+	b.handOverCarried(ctx, id, next)
+	return next, nil
 }
 
-// Timeline replays immutable predecessors before the current attempt. Cursor
-// numbering remains contiguous for the whole chain; only the last can grow.
-func (b *Bench) Timeline(ctx context.Context, id string, cursor uint64) (journal.Record, error) {
+// handOverCarried delivers to a resumed conversation the messages its lost
+// agent never received (agentLost), in the order they were queued, ahead of
+// anything sent next. A message the successor refuses stays carried, and
+// the rest with it, so the predecessor still lists what was not delivered.
+func (b *Bench) handOverCarried(ctx context.Context, id string, next *Execution) {
+	queue, err := b.loadCarried(id)
+	if err != nil || len(queue) == 0 {
+		return
+	}
+	delivered := 0
+	for _, op := range queue {
+		if _, err = next.Engine.Apply(ctx, op); err != nil {
+			log.Printf("resume %s: queued message %s not delivered: %v", id, op.ID, err)
+			break
+		}
+		delivered++
+	}
+	if err = b.saveCarried(id, queue[delivered:]); err != nil {
+		log.Printf("resume %s: carried messages not updated: %v", id, err)
+	}
+	// The predecessor's listing is rebuilt from what is still carried.
+	b.mu.Lock()
+	delete(b.archives, id)
+	b.mu.Unlock()
+}
+
+// lineage is the execution and its predecessors, newest first.
+func (b *Bench) lineage(id string) ([]*Execution, error) {
 	chain := []*Execution{}
 	seen := map[string]bool{}
 	for id != "" {
 		if seen[id] || len(chain) >= 10000 {
-			return journal.Record{}, errors.New("invalid execution lineage")
+			return nil, errors.New("invalid execution lineage")
 		}
 		seen[id] = true
 		e, err := b.Get(id)
 		if err != nil {
-			return journal.Record{}, err
+			return nil, err
 		}
 		chain = append(chain, e)
 		id = e.Previous
 	}
-	var offset uint64
-	for i := len(chain) - 1; i >= 0; i-- {
-		e := chain[i]
-		count := e.spool.Count()
-		if cursor < offset+count || i == 0 {
-			if cursor < offset {
-				return journal.Record{}, journal.ErrCursor
-			}
-			r, err := e.Engine.Events(ctx, cursor-offset)
-			r.Sequence += offset
-			return r, err
-		}
-		offset += count
+	return chain, nil
+}
+
+// Retained is the last cursor of the timeline Timeline replays for id: the
+// records of every attempt in its lineage, numbered contiguously.
+func (b *Bench) Retained(id string) (uint64, error) {
+	t, err := b.OpenTimeline(id)
+	if err != nil {
+		return 0, err
 	}
-	return journal.Record{}, io.EOF
+	return t.Retained(), nil
+}
+
+// Retained is the last cursor of this attempt's own journal.
+func (e *Execution) Retained() uint64 { return e.spool.Count() }
+
+// Timeline replays immutable predecessors before the current attempt. Cursor
+// numbering remains contiguous for the whole chain; only the last can grow.
+func (b *Bench) Timeline(ctx context.Context, id string, cursor uint64) (journal.Record, error) {
+	t, err := b.OpenTimeline(id)
+	if err != nil {
+		return journal.Record{}, err
+	}
+	return t.Next(ctx, cursor)
 }
 
 // importLegacy preserves old transcripts without pretending missing account/

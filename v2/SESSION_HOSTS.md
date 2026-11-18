@@ -1,7 +1,7 @@
 # Agents outlive the Runner
 
 **Requirement.** Restarting the Runner (promoting a release, a Dev hot reload,
-a crash, `launchctl kickstart`) is a no-op for running agents and the commands
+Restart Runner in the app, a crash, `launchctl kickstart`) is a no-op for running agents and the commands
 they started. The next Runner re-attaches to the same native processes, with
 their turn, pending approvals, queued messages and command output intact.
 "History plus resume" is the fallback, not the plan.
@@ -24,16 +24,22 @@ Runner's process group or session, so a Runner exit, crash, group kill, launchd
 job stop or terminal hangup does not reach it. The program runs under
 `processguard` inside the host, so its descendants still die with the host.
 
-A host runs its program in one of two modes:
+A host runs its program in one of three modes:
 
 - **Lines** (agents): JSONL on stdin/stdout. Each line is one sequenced entry;
   requests and responses are tracked so an unanswered request is redelivered.
 - **Stream** (managed commands): no stdin; every read from stdout or stderr is
   one sequenced chunk. Cancelling a command kills its group at once: there is no
   graceful stdin close to wait for.
+- **Terminal** (a person's shell): a pseudo-terminal; raw input and
+  resizes from the Runner, every read one sequenced chunk, plus a bounded
+  scrollback a re-attaching Runner gets in its welcome instead of a replay. The
+  shell is not under `processguard`; a hang-up ends it. See
+  [TERMINALS.md](TERMINALS.md).
 
 Agent hosts live under `<state>/hosts/<id>/`, command hosts under
-`<state>/command-hosts/<id>/` (both 0700). The private `host.json` (0600) carries
+`<state>/command-hosts/<id>/`, terminal hosts under
+`<state>/terminal-hosts/<id>/` (all 0700). The private `host.json` (0600) carries
 the loopback port and a random token; there are no fixed ports or paths. Working
 and Dev have separate state, so separate hosts. A host reads at most 64 KiB from
 a connection before it has authenticated, and refuses a client that does not
@@ -52,7 +58,14 @@ speak the version in its record without displacing the attached Runner.
   already recorded are recognised by content and recorded once.
 - Unacknowledged output is replayed on re-attachment. Agent requests that were
   acknowledged but never answered are replayed too: the agent is still waiting.
-  A request the Runner answered is never replayed.
+  A request the Runner answered is never replayed, and neither is one the agent
+  stopped waiting on without a reply: when the Codex app-server resolves a
+  request itself (`serverRequest/resolved`) or ends the turn it belonged to,
+  the adapter sends the host a `resolve` frame and the host forgets it, as it
+  would an answer. Otherwise every re-attach showed a phantom "waiting for
+  approval", and enough of them (64) faulted adoption. `resolve` is additive: a
+  host older than it ignores the frame (and keeps redelivering, as before), so
+  the wire version did not change.
 - Any replayed line a previous Runner already received is marked
   **redelivered**. Adapters never act twice on a redelivered request whose first
   handling may have had effects:
@@ -104,6 +117,13 @@ notices in the conversation.
 - `Bench.Detach` (used on shutdown when `LAZYBOX_V2_KEEP_AGENTS=1`) records each
   execution's snapshot and attachment, then leaves its host running; running
   managed commands stay too. `Bench.Close` and ending a session still stop them.
+- A Runner shutting down closes every journal under its readers, but a live
+  conversation goes on in the next Runner. So a `WatchEvents` stream it cuts
+  ends `Unavailable`, and the app reconnects from its cursor; only a
+  conversation that is over (closed, or read-only history) ends its stream
+  cleanly, which tells a reader to stop following. A `ReadSessionTail` page a
+  restart interrupts is read again from the next Runner: journals keep their
+  cursors across restarts, and their turn index is rebuilt as they open.
 - Cancelling a hosted process's context stops it, exactly as for a local pipe.
   Only an explicit `Detach`, or the Runner dying outright, leaves it running.
 - Opening the command registry re-attaches every unfinished command with a host.
@@ -116,6 +136,49 @@ notices in the conversation.
   attached: a program this Runner cannot supervise must not keep writing in a
   workspace. The record of a host it cannot reach is removed only if the host
   is gone; a slow or interrupted probe is reported and the host left alone.
+  "Attached" means a client in this Runner's process holds the host
+  (`sessionhost.Held`), never the host's own report: a host counts a crashed
+  or detached predecessor as attached until it has read that connection's
+  close, which can take longer than a Runner restart.
+  An execution it could not re-attach for another reason than its host being
+  gone (an attachment it cannot read, a profile no longer configured) is
+  stopped by that sweep and then ended like a lost agent (below): interrupted,
+  resumable, with an `agent_lost` notice saying why. It is never left open.
+- A fault that says only that the Runner lost its stream from the agent
+  (`agent.TransportFault`: "provider stream ended", "event capture failed") is
+  settled by re-attaching: `engine.Adopt` clears it, and so does any event the
+  agent sends after it. The agent is evidently alive; what it reports says how
+  it is. An agent that really exited reports its exit again from its host and
+  fails again; one whose host is gone cannot be re-attached at all. Provider
+  faults (limits, sign-in, billing, a turn's error) are never cleared this way.
+- Resume on a live conversation with such a fault re-attaches it in place, as
+  a restart would (`Bench.reconnect`: Detach, then adopt): no second agent is
+  started. If the host is gone, or cannot be adopted (it is stopped), the
+  conversation ends as interrupted and resumes natively.
+- The Runner's own writes (the journal, the saved snapshot, metering, account
+  state) can fail while the agent is fine: a full disk. That never ends the
+  supervision of a live agent. The failure is said once in the conversation
+  (`storage_error`) and in the log, and retried: a journal write with the same
+  event, while nothing more is read from the agent or acknowledged to its host
+  (the host keeps the output; the agent blocks once that buffer is full); a
+  snapshot with the next event, or by a retry. A message sent meanwhile is
+  refused, saying the disk is full. A journal that takes nothing more stops
+  the Runner reading the agent, never the agent: Resume or the next Runner
+  re-attaches it.
+- Closing an agent whose host connection was lost asks the host to stop it;
+  a host that is gone took its agent's group with it, which confirms the exit.
+  A conversation whose agent's exit stays unconfirmed resumes once the person
+  confirms the agent is stopped (`processesStopped`).
+- A Runner that loses its stream from an agent (the host connection, its own
+  record keeping) faults the conversation as a lost stream
+  (`agent.TransportFault`): re-attaching settles it, and Resume re-attaches in
+  place. An agent whose process exited is not that: its exit was observed (the
+  host's exit report, `agent.ErrProcessExited`), the conversation's fault is
+  `provider_process_exit` (`agent.ProcessExitFault`), which neither
+  re-adoption nor a later event clears and no message continues, and Resume
+  ends the session and continues the provider's conversation in a new process
+  (`TestAnAgentThatExitedIsResumedInANewProcess`,
+  `TestAnObservedExitIsNotSettledByReadoption`).
 - A newer client attaching to a host supersedes the old one and tells it so; the
   superseded Runner stands down and never stops a program it no longer owns.
 - A host whose program exited while no Runner was attached keeps the remaining
@@ -128,9 +191,81 @@ notices in the conversation.
 - A host whose directory was deleted (its state is gone) stops its program and
   exits. A host removes its directory when it exits.
 - `scripts/runner-command.mjs` sets `LAZYBOX_V2_KEEP_AGENTS=1` for Dev, Working
-  and the Codefly service. Ephemeral test Runners keep the old contract: their
+  and the Codefly service; an installed release's `lazybox-runner serve` keeps
+  agents by default, and its service (a launchd job; on Linux a systemd user
+  unit, or Lazybox's own supervisor without systemd) is the supervisor that offers Restart
+  Runner (`--supervised`, [INSTALL.md](INSTALL.md)). Updating the app replaces
+  the job (`lazybox service install`: bootout, then bootstrap of the new
+  release's Runner); `TestReleaseServiceUpdateKeepsWhatRuns` checks a
+  terminal's shell survives that against the built artifacts. Ephemeral test Runners keep the old contract: their
   agents and commands stop with them, and at startup they stop any agent host
   a crashed predecessor left behind.
+- `RestartRunner` (owner only, `internal/restart`) records a request for the
+  launcher and then takes the same SIGTERM shutdown, so it detaches exactly as
+  above. It is offered only when a launcher declared it will start the Runner
+  again (`LAZYBOX_V2_RESTART_REQUEST`) and agents are kept; see
+  [ENVIRONMENTS.md](ENVIRONMENTS.md#restart-the-runner-from-the-app).
+
+## After a reboot
+
+A reboot is the one restart session hosts do not survive: it ends the Runner,
+every agent, command and terminal host, and the programs in them, at once.
+launchd starts the Runner again at login, and `Bench.Adopt` finds each
+conversation's host record left on disk with nothing listening on it.
+
+- **The agent.** When adopting an execution fails because its host is gone
+  (`sessionhost.Gone`) and no host started for it still answers, the Runner
+  knows nothing of the old agent runs. It ends the conversation as
+  *interrupted*, **not** "recovery required": the person is never asked to
+  confirm that processes they cannot see are stopped. The journal gets one
+  `agent_lost` event whose text says what happened, what the interruption cost
+  (a turn in progress, a request that was waiting, queued messages) and what to
+  do; the app shows it as a notice line. Sending a message resumes the agent
+  through the provider's own session (`Bench.Resume` with the saved reference),
+  as a continuation of the same conversation.
+- **The workspace.** Its record still names that session as working in it,
+  which a Runner that did not re-attach it reads as "Owner uncertain". The
+  Runner checks at startup that none of the session's recorded processes
+  runs (no host left, a PID free or another program's, a command from before
+  the computer started) and clears the mark itself
+  ([unconfirmed ownership](RESOURCE_OWNERSHIP.md#unconfirmed-ownership)).
+  Before this, the mark stayed until someone reconciled it from the CLI.
+- **Queued messages.** The messages waiting behind the interrupted turn move
+  from the attachment record to `<id>.carried.json` (private: it can hold image
+  bytes). The conversation keeps listing them as queued, and resuming delivers
+  them to the resumed agent first, in order, before anything sent next.
+  Deleting the conversation deletes them.
+- **Everything else is on disk and simply reloads**: the transcript (the
+  journal), turn checkpoints (`code-checkpoints`), missions (the work log),
+  and command history with its output. A command that was running ends with
+  "command outcome unknown"; a terminal host that is gone is forgotten.
+
+Each step is repeatable: a Runner that dies part way through leaves either
+the attachment record (and the next Runner finishes the job, writing the
+notice once) or an ended conversation it skips.
+
+**The reboot gate** (`make -C v2 test-reboot`, the `reboot` entry of
+[`scripts/release-gates.json`](scripts/release-gates.json), also part of
+`make test`) proves this without credentials or network. A fixture Runner (the
+test binary re-executed, with a fake Claude worker) leaves a conversation as a
+working day would: a finished turn with its checkpoint, a second turn waiting
+for an approval, a message queued behind it, a finished command and a running
+one, and a mission task the conversation works on. The test then SIGKILLs what
+a reboot kills (the Runner's process group, every host and every program's
+group), waits until none is left, starts a new Runner on the same state and
+checks: Adopt reports no failure; the conversation is whole (both questions,
+the answer, the queued message), interrupted, resumable and not "recovery
+required", with one notice; the queued message is still listed; the
+checkpoint, the mission and both commands with their output are there, the
+running one marked "outcome unknown"; resuming opens the provider session it
+had (`resume=fixture-ref`) as the same conversation, and delivers the queued
+message to it. A second test checks the notice is written once across further
+restarts.
+
+It does not reboot a Mac: launchd starting the Runner at login, a session host
+whose port another process took meanwhile, and the real providers' resume are
+not exercised here (`make -C v2 test-real-outlive` covers real resume after a
+Runner restart, with logins). Terminals are not part of the fixture.
 
 ## Upgrades
 
@@ -141,6 +276,49 @@ bumps `Protocol` and keeps the window's lower bound at the oldest version a
 supported release could have launched a host with. Terminate and release are
 version-stable, so a host outside the window can still be stopped; its
 conversation then falls back to native resume.
+
+The version guards a host against frames it cannot understand, so a change only
+existing hosts could receive bumps it. Terminal mode did not: its spec field and
+`input`/`resize` frames go only to terminal hosts, which only a binary that knows
+terminals launches, and agent and command frames are unchanged. Bumping would
+have cost a rollback its live agents: an older Runner cannot adopt a host of a
+newer version.
+
+## On Linux
+
+A host's own session is not enough under systemd: stopping or restarting a
+service kills every process in its cgroup, whatever its session or process
+group (`KillMode=control-group`, the default). So on Linux each host starts
+through `systemd-run --user --scope`, in a transient scope of its own,
+`lazybox-host-<id>.scope` under the user manager
+(`systemctl --user list-units 'lazybox-host-*'`). The host keeps its PID,
+pipes and session; only its cgroup changes. A tmux client that may start the
+private server runs in a scope too (`lazybox-tmux-<id>.scope`), so the server
+and its hosts leave the Runner's cgroup as well.
+
+- **Where it works:** whenever `systemd-run --user --scope true` does for the
+  Runner: under the installed `lazybox-runner.service`, and from a login
+  session. The Runner tries one trial scope at the first launch and
+  remembers the answer (a failure for a minute).
+- **Where it does not:** no systemd (a container, WSL without systemd), no
+  user manager (`su`, `sudo -u`). Hosts then start as on macOS. They outlive
+  a Runner restart, which is all a container has (Lazybox's own supervisor,
+  [INSTALL.md](docs/install.md#runner-on-a-linux-machine)), but not a restart
+  of the container: that is a reboot for them ([After a reboot](#after-a-reboot)).
+  A scope that fails after the trial passed makes that launch retry without
+  one: an agent never fails to start for want of a scope.
+- **Second line:** the installed unit has `KillMode=process`, so a stop
+  signals the Runner alone even for a host that got no scope.
+- **Logging out.** The scopes belong to the user manager, which runs while
+  the person has a session or lingering is on. Without lingering, the end of
+  the last session stops the user manager and everything under it: the
+  Runner and its hosts, as a reboot would. `lazybox doctor` says whether
+  lingering is on (verified on Ubuntu 24.04: lingering turned off with no
+  session stopped the agent; the next Runner ended its conversation).
+- `lazybox doctor` says which applies (**Agents outlive**).
+- In a container, give it an init that reaps orphans (`docker run --init`,
+  a devcontainer's `"init": true`): hosts outlive the Runner that started
+  them, and when they exit their parent is PID 1.
 
 ## Why there is no local daemon
 
@@ -158,13 +336,143 @@ install and upgrade:
 A daemon becomes worth its cost if hosts must be reachable without any Runner
 (for example a client attaching directly), which nothing needs today.
 
+## See every hosted process: the Processes panel
+
+**Panels → Processes** (workspace header) (or **Settings → Runner → Show
+processes**) lists every process the Runner hosts, whether this Runner holds it
+or not:
+
+- **Agents** (named by their conversation, with provider and workspace),
+  **Commands** (with the conversation that started them) and **Terminals**.
+- **Not supervised by this Runner**: hosts no Runner holds, for example after a
+  Runner crashed before it could hand them over. Each stops by itself after a
+  day without a Runner (`DefaultOrphanAfter`).
+- For each: state (running, starting, exited, not answering), the program's
+  PID (the host's on hover), uptime, CPU and memory summed over the host and
+  everything under it (one `ps` sample per refresh, every 3 seconds), and the
+  backend that started it.
+- **Open** goes to the agent's conversation, the command's console or the
+  shell's terminal tab, switching workspace if needed. **Copy attach** (tmux
+  only) copies `tmux -S <socket> attach -t <host>`. **Stop…** asks first and says
+  what happens; it stops a process the way its owner would: the agent's session
+  is closed (the conversation stays and can continue), the command is cancelled,
+  the terminal is closed; an orphan is stopped directly. **Clean up orphans…**
+  runs the same safe sweep as Runner startup (`stopOrphanHosts`): it stops only
+  hosts this Runner does not hold, leaves a host it cannot probe alone, and
+  forgets records of hosts that are gone.
+
+`ListProcesses`, `StopProcess` and `CleanUpOrphanProcesses` are the owner's
+alone: neither an agent's nor a terminal's credential may call them
+(`TestProcessRPCsAreTheOwnersAlone`, and the exhaustive allowlist tests in
+`internal/transport`). A host being launched counts as held from before it
+exists until its client holds it, so a sweep never takes a process on its way up
+for an orphan (`TestAHostBeingLaunchedIsHeld`).
+
+## Hosting backends: session hosts (default) or tmux
+
+How a host is *started* is pluggable (`sessionhost.Backend`): Launch, attach,
+stop, probe, list, forget and held. Two backends exist:
+
+- **Session hosts** (`sessionhost`, the default): the host is a detached process
+  in its own session, as described above.
+- **tmux** (`tmux`, optional): the same host runs in a window of a private tmux
+  server, so you can watch any agent, command or shell from any terminal.
+
+Only launching differs. The host in a tmux window is the same session host: it
+owns the program's pipes or pseudo-terminal, sequences and buffers its output,
+answers on the same authenticated wire and keeps the gateway proxy. So **every
+guarantee in the delivery contract above holds in tmux mode unchanged**:
+acknowledged cursors, replay and redelivery, backpressure, exactly-once
+journaling, terminal scrollback handed to a re-attaching Runner. The Runner never
+reads anything back from tmux; the window is a view. Records carry the backend,
+and attach, stop, probe and the sweep work on any host whichever backend started
+it, so switching backends never strands a running process.
+
+### Choose it
+
+**Settings → Runner → Process hosting**, or in the private Runner configuration:
+
+```json
+{ "processes": { "backend": "tmux", "tmux": "/opt/homebrew/bin/tmux", "tmuxConfig": "" } }
+```
+
+- `backend`: `sessionhost` (default) or `tmux`. A choice in Settings wins over
+  the configuration; choosing the configured one there follows the
+  configuration again.
+- `tmux`: the executable; `tmux` on the Runner's PATH when empty. tmux 3.0 or
+  newer.
+- `tmuxConfig`: a file the private server loads; none by default, so a personal
+  `tmux.conf` cannot change how hosts behave. The options hosts depend on
+  (`exit-unattached off`, `destroy-unattached off`, `remain-on-exit off`) are set
+  after it either way.
+
+A change applies to the next process started, without a restart; running
+processes keep the backend they started with. If tmux is chosen but cannot
+start a host (not installed, too old, the server refuses), the process starts in
+a session host anyway and the Processes panel and Settings say why: an optional
+backend never stops an agent from starting.
+
+### What you get
+
+- One tmux server per Runner state directory, on its own socket
+  (`tmux -L lazybox-<hash of the state directory>`), so Dev and Working never
+  share one and your own tmux is untouched. One session per host, named after
+  the host; the window is named after the conversation, command or terminal.
+- `tmux -S <socket> ls` lists every hosted process; **Copy attach** gives the
+  command for one. Detach with your prefix, then `d`.
+- An **agent's** window shows each JSONL line to (`>`) and from (`<`) the agent,
+  cut to 400 bytes, with Runner attach and detach events. A **command's** window
+  shows its output, stderr in red. A **terminal's** window *is* the shell: its
+  output, and keys you type there go to the shell. The window takes the size the
+  app's panel sets.
+
+### What tmux does worse
+
+- **One server hosts them all.** `tmux kill-server` on that socket, or the
+  server crashing, hangs up every host: each stops its program (the next Runner
+  still collects the output and exits). Session hosts have no shared process.
+- **Closing a window stops its process** (kill-window, kill-session), as
+  closing a terminal window would. Detaching does not.
+- **The window is a lossy view.** Writes to it are queued and dropped (with a
+  marker) when tmux falls behind, so a stopped or slow tmux never holds the
+  program up. Agent lines are truncated. The app, the console and the journals
+  are complete; the window may not be.
+- **Window scrollback is tmux's** `history-limit` (2,000 lines with no
+  `tmuxConfig`), separate from the app's 1 MiB terminal scrollback and the
+  journals.
+- **Terminal size belongs to the app.** A tmux client of another size sees the
+  panel's size (padded or cut); resizing tmux does not resize the shell.
+- The tmux server's environment is the Runner's without `LAZYBOX_V2_*`,
+  `TMUX` and `TMUX_PANE`; a window you open yourself in that server (prefix `c`)
+  gets it. Hosted programs get exactly the environment they would in a session
+  host.
+- tmux leaves its socket file after the server exits (the last host ended); the
+  next host reuses it.
+
+### Not verified
+
+- Linux with another tmux than 3.4 (Ubuntu 24.04); macOS with tmux 3.8.
+- `kill-server` and a crashing tmux server are not tested separately: they take
+  the same hang-up path as `kill-window`, which `TestClosingATmuxWindowStopsItsProgram`
+  covers.
+- A Runner restart in Dev with tmux selected, live (the restart path is covered
+  by `TestBackendChosenInSettingsHostsTheNextProcess`, which detaches and
+  re-opens the Runner with one host of each backend).
+
 ## Testing
 
 | Command (from the repository root) | What it runs | Accounts |
 | --- | --- | --- |
 | `make -C v2 test-outlive` | Every deterministic test below, with the race detector | none |
 | `make -C v2 test` | The whole Go suite, which includes them | none |
+| `cd v2/services/runner/code && go test ./internal/runner -run TestStoppingTheRunnersSystemdService ./internal/sessionhost -run TestAHostStartsInItsOwnScope` | Linux with a systemd user manager: the fixture Runner runs as a transient service with `KillMode=control-group`; stopping it leaves the agent, which the next Runner re-adopts and which finishes its turn; with no scope the same stop kills it (the control). Skipped where `systemd-run --user --scope` cannot run | none |
+| `LAZYBOX_V2_RELEASE_RUNTIME=<runtime> LAZYBOX_V2_RELEASE_SERVICE=1 go test ./cmd/lazybox -run TestReleaseService` | Installs a test service with the platform's manager (launchd, systemd, the supervisor) from a built release and keeps an agent mid-turn, a command and a terminal across an update and a restart | none |
+| `make -C v2 test-reboot` | The reboot gate: everything a reboot kills is killed, and what must come back does ([After a reboot](#after-a-reboot)) | none |
 | `make -C v2 test-real-outlive` | The live restart check with real agents | `claude` and `codex` logins; billable |
+| `cd v2/services/runner/code && go test ./internal/sessionhost -run 'Tmux\|Launched\|LocalBackend'` | The backends: tmux keeps the delivery contract (replay, redelivery), shows the traffic in its window, takes a terminal's keys and follows its size; closing a window stops its program; a missing tmux fails clearly. Skipped without tmux | none |
+| `cd v2/services/runner/code && go test ./internal/runner -run 'Processes\|Tmux\|ProcessBackend\|BackendChosen'` | The inventory names every agent, command, terminal and orphan; the sweep stops only the orphan; Stop goes through each owner; tmux chosen but missing still starts and says why; a Settings choice applies to the next process and both backends are re-attached | none |
+| `cd v2/services/runner/code && go test ./internal/transport -run TestProcessRPCs` | Process RPCs refuse agent and terminal credentials | none |
+| `npm run test:processes` (from `v2/`) | The Processes panel and Settings → Runner → Process hosting against the fake Runner (Chromium; `TEST_WEBKIT=1` for WebKit) | none |
 
 The deterministic tests start real processes: a session host, a fake agent or
 a shell command, and a Runner that is itself a re-executed test binary, so it
@@ -224,6 +532,7 @@ directory, in `hosts/` and `command-hosts/`.
 - Review fixes, each failing without its fix:
   `TestOrphanSweepLeavesAHostItCouldNotProbe`,
   `TestRunnerThatDoesNotAdoptStopsAPredecessorsAgents`,
+  `TestSweepStopsAHostThatStillShowsAPredecessorAttached`,
   `TestExitedAgentHostKeepsOutputUntilRecorded`,
   `TestReattachedRunnerUsesFreshRequestIDs`,
   `TestOrphanedHostWithAFullBufferExits`,
@@ -239,7 +548,8 @@ directory, in `hosts/` and `command-hosts/`.
   `TestRedeliveredAnsweredApprovalIsAnsweredAgain`,
   `TestAdoptionPassesTheRecordedDecision`,
   `TestAdoptedConversationPlacesMessagesWhereTheyWereDelivered`,
-  `TestReplayedReplyTextIsHandedOverOnce`, and in `internal/redact`
+  `TestReplayedReplyTextIsHandedOverOnce`,
+  `TestResolvedRequestIsNotReplayedAfterReattach` (Codex), and in `internal/redact`
   `TestSecretCutByTheWindowDoesNotLeak`.
 - Redelivery, backpressure, proxy re-pointing, token authentication, the
   version window, stream mode, orphan limit, terminate-kills-descendants, and

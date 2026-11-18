@@ -64,7 +64,11 @@ func OpenAccount(ctx context.Context, binary string, env []string, home string) 
 	return &AccountClient{ctx: life, cancel: cancel, binary: binary, home: home, scratch: scratch, env: filtered}, nil
 }
 
-func (a *AccountClient) Login(ctx context.Context) (accounts.Login, error) {
+// Login starts Claude's browser sign-in; Claude has no device-code sign-in.
+func (a *AccountClient) Login(ctx context.Context, method string) (accounts.Login, error) {
+	if method != "" && method != accounts.BrowserSignIn {
+		return accounts.Login{}, errors.New("Claude signs in only in the browser")
+	}
 	a.mu.Lock()
 	if a.command != nil || a.ctx.Err() != nil {
 		a.mu.Unlock()
@@ -182,11 +186,15 @@ func (a *AccountClient) Close() error {
 
 // ReadUsage queries the pinned native SDK without submitting a prompt or creating
 // an Engine execution. Provider credentials stay inside the isolated worker.
-func ReadUsage(ctx context.Context, worker, binary string, env []string, cwd string) (*agent.AccountObservation, error) {
+// node runs the worker; empty is `node` on PATH, as for Adapter.Node.
+func ReadUsage(ctx context.Context, node, worker, binary string, env []string, cwd string) (*agent.AccountObservation, error) {
 	if worker == "" {
 		return nil, errors.New("Claude SDK worker is not configured")
 	}
-	p, err := jsonl.Start(ctx, "node", []string{worker}, env, cwd)
+	if node == "" {
+		node = "node"
+	}
+	p, err := jsonl.Start(ctx, node, []string{worker}, env, cwd)
 	if err != nil {
 		return nil, err
 	}

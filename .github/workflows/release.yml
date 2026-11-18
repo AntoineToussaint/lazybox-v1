@@ -43,6 +43,9 @@ on:
   push:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
+      # V2 releases (`v2-v<x.y.z>`, .github/workflows/v2-release.yml) also end
+      # in a version; they are not V1 releases.
+      - '!v2-v**'
 
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do

@@ -125,7 +125,9 @@ across Runners remain future integration work.
   most 128 retained Collection records per root.
 - All source commits are resolved before checkout. `HEAD` is the default local
   base; there is no implicit fetch. Each member gets a new branch, defaulting
-  to `feature/<workspace-folder>`. An explicit `branch` must also be
+  to `feature/<workspace-folder>`. The New workspace dialog sends the branch
+  its name suggests (`Login fix` → `feature/login-fix`, editable before
+  creating) as `PrepareWorkspaceRequest.branch`. An explicit `branch` must also be
   new. Existing branches are never force-checked out or reset.
 - Atomic, fsynced manifests live under
   `<worktreeRoot>/.lazybox-collections/records/`, independently of agent journals.
@@ -189,3 +191,11 @@ collisions, and creates the root once. `RenameCollection` changes only `name`;
 worktree paths, branches, ownership claims and request fingerprints remain fixed.
 Versions 1–3 acquire their existing folder basename as the slug when loaded. No
 migration moves files. Older binaries cannot read version 4 manifests.
+
+A workspace started from a work item records it as `origin` (provider, key and
+a snapshot of its kind, title, URL and closing reference; see
+[GITHUB.md](GITHUB.md#start-a-workspace-from-an-issue)). It is an optional
+field of version 4, so no version change: records without it load as before,
+and a request key's fingerprint covers only the item's provider and key, so a
+retry that read the item again is the same request. A Runner that predates the
+field reads such a record and drops the field if it rewrites it.

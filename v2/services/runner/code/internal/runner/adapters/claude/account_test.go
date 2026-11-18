@@ -47,7 +47,7 @@ else:raise Exception('unexpected CLI command')
 				t.Fatal(err)
 			}
 			defer client.Close()
-			login, err := client.Login(ctx)
+			login, err := client.Login(ctx, accounts.BrowserSignIn)
 			if err != nil || !strings.HasPrefix(login.URL, "https://claude.com/") || login.Code != "" {
 				t.Fatal("missing browser callback URL", err)
 			}
@@ -88,7 +88,7 @@ func TestInstalledClaudeBrowserHandoffWithoutAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	login, err := client.Login(ctx)
+	login, err := client.Login(ctx, accounts.BrowserSignIn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestNativeManagedSubscriptionUsage(t *testing.T) {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		observation, err := ReadUsage(ctx, os.Getenv("LAZYBOX_V2_WORKER"), "", env, profile.Home)
+		observation, err := ReadUsage(ctx, "", os.Getenv("LAZYBOX_V2_WORKER"), "", env, profile.Home)
 		cancel()
 		if err != nil {
 			t.Fatalf("account %d: %v", count, err)

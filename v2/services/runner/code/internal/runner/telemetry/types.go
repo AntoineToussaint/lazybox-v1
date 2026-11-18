@@ -33,6 +33,7 @@ type Record struct {
 	Status       string    `json:"status"` // pending, complete, partial, failed, interrupted
 	Tokens       Tokens    `json:"tokens"`
 	Nanos        *int64    `json:"nanos,omitempty"` // API-equivalent token cost, never an invoice.
+	Costs        *Costs    `json:"costs,omitempty"` // Nanos by part; absent when unpriced.
 	PriceVersion string    `json:"priceVersion,omitempty"`
 	Reason       string    `json:"reason,omitempty"`
 	Tier         string    `json:"tier,omitempty"`
@@ -60,9 +61,23 @@ type ContextSnapshot struct {
 	Categories []Category `json:"categories,omitempty"`
 	ObservedAt time.Time  `json:"observedAt"`
 }
+
+// CommandRun is what one `lazybox run` gave its agent against what the command
+// printed: the evidence for judging output compression (COMMAND_OUTPUT.md).
+type CommandRun struct {
+	ID          string    `json:"id"`
+	Scope       Scope     `json:"scope"` // Execution is required; the rest when known.
+	Filter      string    `json:"filter"`
+	ExitCode    int       `json:"exitCode"`
+	OutputBytes uint64    `json:"outputBytes"`
+	AgentBytes  uint64    `json:"agentBytes"`
+	ObservedAt  time.Time `json:"observedAt"`
+}
 type Query struct {
 	Workspace, Execution, Conversation string
 	Prices                             Pricer
+	// Series also reports usage hour by hour (Report.Series).
+	Series bool
 }
 type Group struct {
 	Scope      Scope  `json:"scope"`
@@ -74,11 +89,37 @@ type Group struct {
 	Records    int64  `json:"records"`
 	Unpriced   int64  `json:"unpriced"`
 	Incomplete int64  `json:"incomplete"`
+	// Costs is Nanos by part, when every priced record says; absent otherwise.
+	Costs *Costs `json:"costs,omitempty"`
+	// UnpricedReasons says why the unpriced records have no price, each once.
+	UnpricedReasons []string `json:"unpricedReasons,omitempty"`
+	// UnpricedTokens are the tokens of the unpriced records: what Nanos leaves out.
+	UnpricedTokens Tokens `json:"unpricedTokens"`
 }
+
+// Costs is what each part of a usage cost, in nanodollars, part for part
+// as Tokens counts it.
+type Costs Tokens
 type Report struct {
 	Groups   []Group           `json:"groups"`
 	Contexts []ContextSnapshot `json:"contexts"`
 	Recent   []Record          `json:"recent"`
+	// Series is usage hour by hour, oldest first; only when Query.Series.
+	Series []Bucket `json:"series,omitempty"`
+}
+
+// Bucket is usage in one hour (UTC) by conversation, provider and model,
+// counted as Group counts it: the records it holds are the report's, once
+// each, priced the same way.
+type Bucket struct {
+	HourUnixMillis int64  `json:"hourUnixMillis"`
+	Conversation   string `json:"conversation"`
+	Provider       string `json:"provider"`
+	Model          string `json:"model"`
+	Tokens         Tokens `json:"tokens"`
+	Nanos          *int64 `json:"nanos,omitempty"`
+	Records        int64  `json:"records"`
+	Unpriced       int64  `json:"unpriced"`
 }
 
 // Store must acknowledge observations durably. Repeated IDs replace snapshots;
@@ -89,6 +130,7 @@ type Store interface {
 	PutContext(context.Context, ContextSnapshot) error
 	Report(context.Context, Query) (Report, error)
 	LatestModel(context.Context, string) (string, error)
+	PutCommand(context.Context, CommandRun) error
 	Close() error
 }
 type Pricer interface{ Price(Record) Record }

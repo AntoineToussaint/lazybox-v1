@@ -6,10 +6,38 @@ This requirement applies from the first agent contract. Provider-specific accoun
 
 The implementation preserves inherited native settings and credentials by
 default. On 2026-10-29 the user explicitly requested once-only enrollment and
-rotation among saved subscriptions. Rotation is now implemented behind an
-explicit pool: `RunnerOptions.rotation_profile_ids` or configured
-`defaults.rotationProfiles`. An empty pool leaves account selection unchanged.
-No implicit provider change, global logout/login, or API-key fallback is used.
+rotation among saved subscriptions. On 2026-11-17 automatic rotation left the
+core ([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md)): the core keeps several
+accounts per provider, chosen explicitly per conversation, and switching by
+itself at a limit is an extension's **account policy**
+([EXTENSIONS.md](EXTENSIONS.md#account-policy)), off until the person adds and
+allows one (Lazybox bundles *Subscription rotation*, not installed). Without a
+policy (fresh state) a conversation's pool is empty, and a pool saved with a
+conversation switches nothing: the rotation supervisor asks at every limit whether a policy
+covers the provider. With one, a new conversation's pool is the policy's
+ordered accounts, or every other signed-in subscription (enrolled, isolated
+profile) of the same provider, sorted by ID and capped at 16. Two opt-outs
+narrow it: **Settings → Subscriptions → Automatic switching** takes one account
+out of every new conversation's pool (`RunnerSettings.rotation_excluded_profile_ids`),
+and unchecking **Switch subscriptions automatically** when starting a
+conversation keeps that one on its selected account (`RunnerOptions.no_rotation`,
+saved with the conversation). An explicit `RunnerOptions.rotation_profile_ids`
+or configured `defaults.rotationProfiles` still wins, and a configured empty
+list disables the default. The pool is resolved when a conversation starts;
+subscriptions added or excluded later apply to conversations started afterwards,
+and a resumed conversation keeps its saved pool. An empty pool leaves account
+selection unchanged. No implicit provider change, global logout/login, or
+API-key fallback is used.
+
+Claude is different ([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md)). The
+recommended credential is an Anthropic API key the person saves in Settings →
+Agents & workspaces → Claude (`SetClaudeApiKey`, kept in
+`<state>/secrets/anthropic-api-key`, `0600`): the `claude-default` account's
+agents get it as `ANTHROPIC_API_KEY`, every other Claude credential removed.
+Without one, `claude-default` runs on the person's own Claude Code sign-in.
+Claude subscriptions saved through Lazybox's own sign-in start only with
+`RunnerSettings.claude_subscription_sign_in` on (off by default), and Lazybox
+imports no Claude subscription token.
 
 ## Implemented local Runner path
 
@@ -34,22 +62,91 @@ Native reset times permit a later probe. A throttled account without a native
 reset receives a 60-second probe delay; exhaustion with no known reset stays
 unavailable until a subsequent provider observation. Unknown errors, context
 limits, local turn/budget limits, billing problems, and retry-in-progress
-notifications do not trigger rotation. If no account is eligible, the failure
-remains visible; this implementation does not run a timer to automatically
-resume a blocked conversation when capacity returns.
+notifications do not trigger rotation. If no account is eligible, the
+conversation stops at the limit and says so; the Runner itself runs no timer to
+resume it when capacity returns.
+
+### Switching on request
+
+The owner can move a running conversation at any time (`SwitchSubscription`,
+owner only; agent and terminal credentials are refused). This explicit switch
+is core and needs no account policy; `enable_rotation` does. It uses the same
+attempt mechanism as automatic rotation, in the same execution: the old native
+process is closed before the new one starts, credentials are resolved first so
+a profile that cannot start never costs the running agent, and the new account
+starts from the same portable checkpoint. An interrupted request (the
+conversation stopped at a limit, or a turn is running) is continued at once; an
+idle conversation starts no turn, and the checkpoint travels with the next
+message instead (durable across a Runner restart). Choosing the conversation's
+current subscription after its reset continues the same native conversation in
+place. The person may pick a subscription whose last observation is a limit:
+a refusal comes back as a limit again.
+
+At an account limit (exhausted, throttled, sign-in or billing) a conversation
+still accepts messages: they are journaled once, wait in the queue and are
+delivered after the switch or the retry, after the interrupted request. No
+operation is replayed. Other faults still refuse messages until reconciled.
+
+`SetSessionRotation` (refused without an account policy when turning it on)
+turns automatic switching on or off for a running conversation (its pool is resolved as for a new conversation on its current
+subscription, honouring Settings exclusions, and saved with it). With
+`all_sessions` it applies to every running conversation of the provider that
+did not opt out when it started, and turning it on takes the provider's
+subscriptions back into automatic switching in Settings.
+
+In the conversation, an automatic switch is one quiet line ("Switched to Work ·
+Personal is back at 6:00 PM"). Without one, a single card names the limit and
+when the subscription is back ("back at 6:00 PM (in 2h 10m)"), offers **Switch
+to** the best other subscription first (a picker when there are several, with
+each one's state and reset) and **Wait for reset**. Only while an account
+policy covers the provider does it also offer **Always switch automatically**
+(the first time, one question offers it for every conversation). Waiting continues the request on the same subscription
+at the reset while the conversation is open in a window, or the next time it is
+opened; this is the client's timer, not the Runner's. The session ⋯ menu, the
+subscription in the conversation's header and `/subscription` open **Switch
+subscription…** at any time. Provider tokens are never shown.
+
+Every list of subscriptions has one order (`subscription-groups.ts`, with
+`orderSubscriptions` in `subscription-model.ts`): grouped by provider (Claude,
+Codex, then each ACP agent by name) under a small header with its icon, and
+within a group the current one first, then the available ones, then those not
+known to be limited, then the limited ones, by name within each. One group
+shows no header. That is Settings → Subscriptions, the switch dialog and the
+limit card (the conversation's own provider only: a conversation cannot move
+across providers), and the account pickers of New conversation, New task, a
+start request and Missions (`<optgroup>`s when they mix providers); a limited
+one says when it is back.
+
+Every surface says when a limited subscription can be used again the same way
+(`backAt`/`comeback` in `subscription-model.ts`): the conversation card and
+header, the switch picker, the Inbox line, and **Settings → Subscriptions**. A
+limit lasts until every usage window at 100% has reset, so a card is back at the
+latest of those resets ("Back at 6:00 PM (in 2h 10m)"), updated each half
+minute. Once that time has passed the report is stale: the card says "Should be
+available again — checking…", refreshes that subscription's usage once by
+itself, and shows what the provider reports now. A window whose reset has passed
+shows "Reset" instead of a stale percentage. With no reported reset time the
+card says so. An available card names only its next reset, of its most-used
+window.
 
 Use **Settings → Subscriptions → Add subscription** in the main workspace,
-or enroll on the Runner host using `lazybox account-login` as described in
-[Running](RUNNING.md#enroll-subscriptions-once). Codex uses its native login
-with an isolated `CODEX_HOME` and an explicitly selected file auth store.
-Claude runs its native `auth login --claudeai` command with a private
-`CLAUDE_CONFIG_DIR`. Lazybox opens the native browser URL; Claude owns the local
+or enroll a Codex account on the Runner host using `lazybox account-login` as
+described in [Running](RUNNING.md#enroll-subscriptions-once). Codex uses its
+native login with an isolated `CODEX_HOME` and an explicitly selected file auth
+store. Claude, only with Claude sign-in in Lazybox on, runs its native
+`auth login --claudeai` command with a private `CLAUDE_CONFIG_DIR`. Lazybox opens the native browser URL; Claude owns the local
 callback, code exchange and credential persistence. A fresh `auth status`
 process must confirm `claude.ai`, a saved login and the expected config directory
 before the account is registered. The native login is reused when switching.
 Only permission and sandbox preferences are seeded from existing user settings;
 auth and account metadata are not copied and the source settings are never written.
-The CLI-only setup-token import remains available for automated provisioning.
+The setup-token import is refused for Claude (Lazybox may not store a Claude.ai
+credential). An account imported that way earlier keeps working while Claude
+sign-in in Lazybox is on, marked *Imported token; not recommended* with
+**Remove** in Settings. A Runner state that already had Claude subscriptions
+saved, or automatic switching on, keeps them working: the migration carries
+Claude sign-in in Lazybox over on and installs and approves Subscription
+rotation ([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md#existing-setups-keep-working)).
 Settings reloads the registry live; no Runner restart is required. Existing
 profiles are never overwritten. Credentials stay out of profile metadata,
 journals, RPC responses and checkpoints.
@@ -82,9 +179,31 @@ coding sessions. Refresh state is per subscription: one pending refresh disables
 only its own button. Other accounts remain independently refreshable; errors
 and previous observations remain scoped to the account requested.
 
-Codex uses public app-server device sign-in RPCs and a correlated completion.
-The provider page opens in the system browser only when requested. Successful
-sign-in commits the profile into the live registry; cancellation does not.
+Codex signs in through public app-server RPCs in the profile's own
+`CODEX_HOME` with the file credential store, in one of two ways
+(`AddSubscriptionRequest.sign_in_method`, echoed on `SubscriptionEnrollment`):
+
+- **Browser** (the default): `account/login/start {"type":"chatgpt"}` returns
+  `{loginId, authUrl}` and no code. The client opens `authUrl` through the
+  host's sign-in opener; ChatGPT redirects to Codex's own loopback listener
+  (`127.0.0.1:1455`, or Codex's fallback port when that one is held), and
+  Codex writes the credentials into the profile. It therefore works only from
+  a browser on the Runner's computer. Cancel sends `account/login/cancel
+  {loginId}` before the app-server is closed, freeing the port.
+- **Device** (`"device"`): `account/login/start {"type":"chatgptDeviceCode"}`
+  returns a verification URL and a one-time code to enter on any device.
+
+Both complete with the same `account/login/completed` notification, matched by
+`loginId`; other notifications (such as `remoteControl/status/changed`, which
+can precede a response) are skipped. Verified against codex-cli 0.169.0
+(`TestRealCodexBrowserSignInStartsAndCancels` starts and cancels a browser
+sign-in in a scratch `CODEX_HOME`). The client starts with the browser when
+its page is served from loopback or the desktop app's origin (the owner's
+windows, on the Runner's computer) and with a code otherwise; either way the
+person can switch, which cancels the waiting sign-in and starts the other for
+the same account. Claude has only the browser and refuses `"device"`.
+Successful sign-in commits the profile into the live registry and closes the
+dialog; cancellation registers nothing.
 Refresh uses `account/read` and `account/rateLimits/read` without starting a
 thread or model turn. Separate native quota buckets remain separate.
 
@@ -105,15 +224,28 @@ Live queries on two isolated saved accounts returned weekly quota successfully.
 The earlier `/usage` slash-command probe reported session costs, but did not
 establish that the SDK lacked an independent quota method.
 
-Codex device sign-in requires the ChatGPT Security setting to be enabled. A
-provider rejection naming that setting becomes an actionable enrollment error.
+Codex device sign-in requires the ChatGPT Security setting that allows device
+codes; in a Business or Enterprise workspace only an admin can enable it. A
+provider rejection naming that setting fails the enrollment with
+`error_code: "device_sign_in_disabled"` and one line saying so; the client
+offers **Sign in with the browser instead**. When Codex cannot bind its
+callback port, the browser enrollment fails with
+`error_code: "sign_in_in_progress"`, and the client offers a code instead.
+Before that, Codex itself sends `GET /cancel` to whatever holds 1455 (meant
+to stop a `codex login` waiting there) and then falls back to 1457; it
+fails ("failed to start login server: Port 127.0.0.1:1457 is already in
+use") only when both are held. Both behaviours were observed with codex-cli
+0.169.0 and a scratch `CODEX_HOME`.
 **Copy code** copies the exact one-time code through the native desktop clipboard
 and confirms success; codes remain absent from persisted view state.
 
 Enrollment is idempotent. Clients retain only a non-secret request reference
 to recover lost acknowledgements. Tokens, one-time codes and sign-in URLs are
 absent from saved client view state and ordinary Info metadata. Registered
-profiles survive Runner restart; incomplete login processes do not. Completed
+profiles survive Runner restart; incomplete login processes do not. A sign-in
+still waiting after 10 minutes is stopped and reads `expired` ("The sign-in
+took too long and was stopped"), as does one a restarted Runner no longer
+has; one whose account was saved reads `added`. Completed
 requests can be reconciled from saved metadata without replaying a token.
 Credential renewal/removal UI and distributed Hub account management remain
 subsequent work.

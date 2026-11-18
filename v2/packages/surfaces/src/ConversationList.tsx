@@ -1,19 +1,36 @@
+import { peekProps } from './peek-model';
 import { ActionMenu } from './ActionMenu';
-import { DeleteConversationDialog } from './DeleteConversationDialog';
+import { ActionMenuItems } from './ActionMenuItems';
+import { contextMenu } from './ContextMenu';
 import { Icon } from './Icons';
 import { useEffect, useState } from 'react';
 import { Code, ConnectError } from '@lazybox/client-core';
 import type { Session } from '@lazybox/protocol';
 import { useRunner } from './RunnerContext';
 import { sessionStatus } from './agent-status';
-import { conversationDetails, sessionAccountLabel, mergeConversations } from './conversation-model';
+import { SessionMark } from './LiveIndicator';
+import { conversationDetails, conversationName, mergeConversations } from './conversation-model';
+import { activityAt, ageLabel } from './attention';
+import { archivedAt, isArchivedAway, isPinned, pinnedAt } from './agents-model';
+import { InlineConversationRename, useConversationActions } from './ConversationActions';
 import type { ViewTarget } from './workspace-model';
+import { conversationRowGestures } from './conversation-requests';
+import { isMac } from './actions';
 
-/** Selecting a conversation attaches a reader; it never starts execution. */
-export function ConversationList({ collectionId = '', target, onTarget, compact = false, hideWhenEmpty = false, heading, allWorkspaces = false, sessions: supplied }: { sessions?: Session[]; allWorkspaces?: boolean; compact?: boolean; hideWhenEmpty?: boolean; heading?: string; collectionId?: string; target: ViewTarget; onTarget(target: ViewTarget): void }) {
+/** How a row opens as a tab, on hover (a click shows it in the preview tab). */
+const ROW_HINT = `Double-click: keep it in a tab · ${isMac ? '⌘' : 'Ctrl'}-click: open behind`;
+import { useUnread } from './useAttention';
+import './inbox.css';
+
+/**
+ * Conversations, one row each: status mark, title, age. Pinned ones first;
+ * archived ones only in History (allWorkspaces), marked. Provider and model
+ * are the tooltip. Selecting a conversation attaches a reader; it never
+ * starts execution. The row's menu is every conversation's (ConversationActions).
+ */
+export function ConversationList({ collectionId = '', target, onTarget, compact = false, hideWhenEmpty = false, heading, allWorkspaces = false, sessions: supplied, workspaceName }: { sessions?: Session[]; allWorkspaces?: boolean; compact?: boolean; hideWhenEmpty?: boolean; heading?: string; collectionId?: string; target: ViewTarget; onTarget(target: ViewTarget): void; workspaceName?(id: string): string }) {
   const { api, info, revision, error:connectionError } = useRunner();
   const [search, setSearch] = useState('');
-  const [deleting,setDeleting]=useState<Session>();
   const [deleted,setDeleted]=useState<Set<string>>(()=>new Set());
   const [history, setHistory] = useState<Session[]>([]);
   const [error, setError] = useState('');
@@ -21,6 +38,14 @@ export function ConversationList({ collectionId = '', target, onTarget, compact 
   const [more, setMore] = useState(false);
   const [loading,setLoading]=useState(true);
   const [unsupported, setUnsupported] = useState(false);
+  const [renaming, setRenaming] = useState('');
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
+  const unread = useUnread();
+  const actions = useConversationActions({ onOpen: onTarget, onDeleted: gone => {
+    setDeleted(previous => new Set([...previous, gone.id])); setHistory(previous => previous.filter(row => row.id !== gone.id));
+    if (target.sessionId === gone.id) onTarget({ ...target, sessionId: '', commandId: '' });
+  } });
   useEffect(() => {
     if (supplied) {setLoading(false); return;}
     const control = new AbortController();
@@ -50,18 +75,42 @@ export function ConversationList({ collectionId = '', target, onTarget, compact 
     void load(); const timer = setInterval(() => void load(), 3000);
     return () => { control.abort(); clearInterval(timer); };
   }, [api, pageCount, collectionId, search, allWorkspaces, revision, supplied]);
-  const visible = (supplied || mergeConversations(history, info?.sessions || [])).filter(session => !deleted.has(session.id) && (allWorkspaces || session.collectionId === collectionId) && (!search.trim() || session.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())));
+  const open = (session: Session) => onTarget({ collectionId: session.collectionId, sessionId: session.id, commandId: '' });
+  const matching = (supplied || mergeConversations(history, info?.sessions || [])).filter(session => !deleted.has(session.id) && (allWorkspaces || session.collectionId === collectionId) && (allWorkspaces || !isArchivedAway(session)) && (!search.trim() || session.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())));
+  // Pinned first, in the order they were pinned; the rest keep their order.
+  const visible = [...matching.filter(isPinned).sort((a, b) => pinnedAt(a) - pinnedAt(b)), ...matching.filter(session => !isPinned(session))];
   if(hideWhenEmpty&&!visible.length&&!search&&!error)return null;
-  return <div className="conversation-navigation">
+  return <div className="conversation-navigation" data-peek-list>
     {heading&&<div className="explorer-heading"><span>{heading}</span></div>}
     {error && !connectionError && <p className="error" role="alert">Could not load saved conversations.</p>}
     {unsupported && !collectionId && <p className="module-empty">Live conversations · saved history requires a Runner update.</p>}
     {allWorkspaces && <input autoFocus type="search" className="conversation-filter" aria-label="Search all conversation titles" placeholder="Search all conversation titles…" maxLength={120} value={search} onChange={event => { setSearch(event.target.value); setPageCount(1); }}/> }
-    <nav aria-label={allWorkspaces ? 'All conversations' : collectionId ? 'Workspace conversations' : 'Conversations'}>{visible.map(session => <div className="conversation-row" key={session.id}><button className="conversation-link" aria-current={target.sessionId===session.id?'page':undefined} onClick={() => onTarget({ collectionId: session.collectionId, sessionId: session.id, commandId: '' })}>
-      <span className={`session-dot status-${session.closed?'saved':session.status}`} title={sessionStatus(session)}/><span className="conversation-label"><strong>{session.title || 'Untitled conversation'}</strong><small className="conversation-agent" title={conversationDetails(session,info?.profiles||[])+' · '+sessionStatus(session)}>{session.model?`${session.provider==='codex'?'Codex':'Claude'} · ${session.model}`:session.provider==='codex'?'Codex':'Claude'}{info?.profiles.find(profile=>profile.id===session.profileId)?.label&&session.profileId!=='claude-default'&&session.profileId!=='codex-default'?` · ${sessionAccountLabel(session,info?.profiles.find(profile=>profile.id===session.profileId))}`:''}</small><span className={session.closed||['ready','done','stopped'].includes(session.status)?'sr-only':'conversation-state'}>{sessionStatus(session)}</span></span>
-    </button><ActionMenu className="conversation-actions" label={`Actions for conversation ${session.title||session.id}`} ><button className="danger" onClick={event=>{event.currentTarget.closest('details')!.open=false;setDeleting(session);}}>Delete conversation…</button></ActionMenu></div>)}</nav>
+    <nav aria-label={allWorkspaces ? 'All conversations' : collectionId ? 'Workspace conversations' : 'Conversations'}>{visible.map(session => {
+      const marker = unread(session), title = conversationName(session), status = sessionStatus(session), archived = archivedAt(session) > 0, pinned = isPinned(session);
+      const items = actions.items(session, { rename: () => setRenaming(session.id) }), at = activityAt(session);
+      const details = [allWorkspaces || !compact ? workspaceName?.(session.collectionId) : '', conversationDetails(session, info?.profiles || [])].filter(Boolean).join(' · ');
+      return <div className="conversation-row" data-unread={marker || undefined} data-pinned={pinned || undefined} data-archived={archived || undefined} key={session.id}
+        onContextMenu={contextMenu('conversation', () => items, { sessionId: session.id, workspaceId: session.collectionId }, `Conversation ${title}`)}
+        onKeyDown={event => { if (event.key === 'F2' && renaming !== session.id) { event.preventDefault(); setRenaming(session.id); } }}>
+        {renaming === session.id
+          ? <div className="conversation-renaming"><SessionMark session={session} unread={marker}/><InlineConversationRename session={session} onDone={() => setRenaming('')}/></div>
+          : <button className="conversation-link" {...peekProps({ kind: 'conversation', sessionId: session.id, workspaceId: session.collectionId, title: session.title })} aria-current={target.sessionId===session.id?'page':undefined}
+              title={[title, `${status} · ${details}`, ROW_HINT].join('\n')}
+              {...conversationRowGestures({ collectionId: session.collectionId, sessionId: session.id, commandId: '' }, () => open(session))}>
+              <SessionMark session={session} unread={marker} title={marker ? (marker === 'failed' ? 'Failed · unread' : 'Ready for review · unread') : status}/>
+              <span className="sr-only">{marker ? (marker === 'failed' ? 'Failed, unread' : 'Ready for review, unread') : status}{pinned ? ', pinned' : ''}{archived ? ', archived' : ''}: </span>
+              <span className="conversation-label">
+                <strong>{title}</strong>
+                {!compact && <small className="conversation-agent">{details}</small>}
+              </span>
+              {pinned && <span className="conversation-pinned" aria-hidden="true"><Icon name="pin" size={10}/></span>}
+              {archived && <span className="conversation-archived">Archived</span>}
+              <time className="conversation-age" dateTime={at ? new Date(at).toISOString() : undefined}>{ageLabel(at, now)}</time>
+            </button>}
+        <ActionMenu className="conversation-actions" label={`Actions for conversation ${session.title||session.id}`}><ActionMenuItems items={items}/></ActionMenu>
+      </div>; })}</nav>
     {!error && !loading && !visible.length && <p className="module-empty">{search ? 'No conversation titles match this search.' : collectionId ? 'No conversations in this workspace yet.' : 'No standalone conversations yet.'}</p>}
-    {deleting&&<DeleteConversationDialog session={deleting} onClose={()=>setDeleting(undefined)} onDeleted={()=>{setDeleted(previous=>new Set([...previous,deleting.id]));setHistory(previous=>previous.filter(row=>row.id!==deleting.id));if(target.sessionId===deleting.id)onTarget({...target,sessionId:'',commandId:''});setDeleting(undefined);}}/>}
+    {actions.dialogs}
     {more && <button onClick={() => setPageCount(value => value + 1)}>Show more conversations</button>}
   </div>;
 }

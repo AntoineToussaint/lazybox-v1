@@ -94,7 +94,7 @@ func (m *Manager) readFileLocked(ctx context.Context, id, reference string) (Fil
 		}
 	}
 	if err != nil {
-		return FilePreview{}, errors.New("file not found; use a workspace-relative path including the repository name")
+		return FilePreview{}, fmt.Errorf("%s: %w in this workspace", filepath.ToSlash(path), os.ErrNotExist)
 	}
 	defer file.Close()
 	stat, err := file.Stat()

@@ -37,7 +37,12 @@ mis = "mis"                  # hyphenated prefix: "mis-decode" etc.
 fo = "fo"                    # RFC 4648 base64 test vector (b"fo")
 hel = "hel"                  # composing-buffer test value ("hello" minus 2 chars)
 passin = "passin"            # openssl option: `-passin pass:…` (p12 signing preflight)
-trak = "trak"                # MP4 box fourcc (moov>trak>mdia); demo caption-duration test
+trak = "trak"
+# Half-typed words the V2 Vim-editing tests type and then correct.
+worl = "worl"
+thr = "thr"
+hree = "hree"
+vey = "vey"                # MP4 box fourcc (moov>trak>mdia); demo caption-duration test
 
 [files]
 extend-exclude = [

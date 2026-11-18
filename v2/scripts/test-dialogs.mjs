@@ -1,12 +1,13 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from 'vite';
 import react from '@vitejs/plugin-react';
-import { chromium, expect } from '@playwright/test';
+import { chromium, expect } from './fixtures/playwright.mjs';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { startRunnerFixture } from './fixtures/runner-ui.mjs';
 
 const fixture = await startRunnerFixture();
-const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
+const server = await createServer({...testViteCache(import.meta.url), configFile: false, root: fileURLToPath(new URL('../apps/web', import.meta.url)), plugins: [react()], server: { host: '127.0.0.1', port: 0, proxy: { '/lazybox.bench.v1.RunnerService/': { target: fixture.url } } } });
 let browser;
 try {
   await server.listen(); browser = await chromium.launch({ headless: true });
@@ -58,11 +59,15 @@ try {
   await subscription.getByRole('button', { name: 'Close subscription dialog' }).click();
   await expect(subscription).not.toBeVisible();
 
-  await page.getByRole('button', { name: 'New conversation', exact: true }).click();
+  const newConversation = page.getByRole('button', { name: 'New conversation', exact: true });
+  await newConversation.click();
   const session = page.getByRole('dialog', { name: 'New conversation', exact: true });
+  await expect(session.getByRole('heading', { name: 'New conversation', level: 2 })).toBeVisible();
   await checkMovement(session);
   await session.getByRole('button', { name: 'Close new conversation' }).click();
   await expect(session).not.toBeVisible();
+  // Closing gives the focus back to what opened the dialog.
+  await expect(newConversation).toBeFocused();
 
   await page.getByRole('button',{name:'Work',exact:true}).click();
   await page.getByRole('button',{name:'New workspace',exact:true}).click();
@@ -72,7 +77,68 @@ try {
   await dragHeader(workspace,230,180);await page.setViewportSize({width:700,height:500});await expect.poll(async()=>{const b=await workspace.boundingBox();return b.x>=7&&b.y>=7&&b.x+b.width<=693&&b.y+b.height<=493;}).toBe(true);
   await workspace.getByRole('button',{name:'Close workspace dialog'}).click();
   await expect(workspace).toHaveCount(0);
+
+  // One dialog style: a danger button's label is the colour made for its fill, in either theme, whatever
+  // shell-wide rule (`.workspace-shell button.danger`) comes later; and the title is the shared size.
+  const contrast = node => {
+    const channels = value => { const n = (value.match(/[\d.]+/g) || []).map(Number); return value.startsWith('color(') ? n.slice(0, 3).map(v => v * 255) : n.slice(0, 3); };
+    const luminance = rgb => { const [r, g, b] = rgb.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const style = getComputedStyle(node), fg = luminance(channels(style.color)), bg = luminance(channels(style.backgroundColor));
+    return { ratio: (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05), color: style.color, background: style.backgroundColor };
+  };
+  await page.setViewportSize({ width: 1400, height: 1000 });
+  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace&collection=alpha&session=alpha-session#token=${fixture.token}`);
+  await expect(page.locator('.panel-chat').getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
+  await page.locator('summary[aria-label="Panels"]').click();
+  await page.getByRole('button', { name: 'Show Processes', exact: true }).click();
+  const processes = page.getByRole('region', { name: 'Hosted processes', exact: true });
+  for (const colorScheme of ['dark', 'light']) {
+    await page.emulateMedia({ colorScheme });
+    await processes.getByRole('button', { name: 'Stop Fix the parser…', exact: true }).click();
+    const stop = page.getByRole('dialog', { name: 'Stop “Fix the parser”?' });
+    const danger = stop.getByRole('button', { name: 'Stop agent', exact: true });
+    await expect(danger).toBeVisible();
+    const measured = await danger.evaluate(contrast);
+    assert.ok(measured.ratio >= 4.5, `${colorScheme}: the danger label reads on its fill (${JSON.stringify(measured)})`);
+    assert.equal(await stop.evaluate(node => getComputedStyle(node.querySelector('h2')).fontSize), '15px', `${colorScheme}: the shared dialog title size`);
+    await page.waitForTimeout(150);
+    await stop.screenshot({ path: `.cache/dialogs-stop-${colorScheme}.png` });
+    await stop.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(stop).toHaveCount(0);
+    // The shared confirmation (ConfirmDialog): Delete conversation, its danger button off until the box is ticked, then a readable fill.
+    await page.locator('.panel-chat .chat-heading .chat-status').click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Delete conversation…' }).click();
+    const deletion = page.getByRole('dialog', { name: 'Delete conversation', exact: true });
+    await expect(deletion.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+    assert.equal(await deletion.evaluate(node => getComputedStyle(node.querySelector('h2')).fontSize), '15px', `${colorScheme}: the confirmation title is the shared size`);
+    const confirmButton = deletion.locator('footer button.danger');
+    // Wait until the dialog has checked for running work: a live conversation then asks for the stop box.
+    await expect(deletion.getByText('Checking running resources…')).toHaveCount(0);
+    const box = deletion.getByRole('checkbox');
+    if (await box.count()) {
+      await expect(confirmButton).toBeDisabled();
+      await page.waitForTimeout(150);
+      await deletion.screenshot({ path: `.cache/dialogs-delete-conversation-off-${colorScheme}.png` });
+      await box.check();
+    }
+    await expect(confirmButton).toBeEnabled();
+    // Measured once its colours have settled (buttons ease between states).
+    await expect.poll(async () => (await confirmButton.evaluate(contrast)).ratio, { message: `${colorScheme}: the delete label reads on its fill` }).toBeGreaterThanOrEqual(4.5);
+    await page.waitForTimeout(150);
+    await deletion.screenshot({ path: `.cache/dialogs-delete-conversation-${colorScheme}.png` });
+    await deletion.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(deletion).toHaveCount(0);
+    // And a dialog with a primary action: New workspace, starting on its name.
+    await page.getByRole('button', { name: 'Work', exact: true }).click();
+    await page.getByRole('button', { name: 'New workspace', exact: true }).click();
+    const created = page.getByRole('dialog', { name: 'New workspace', exact: true });
+    await expect(created.getByLabel('Workspace name', { exact: true })).toBeFocused();
+    await page.waitForTimeout(150);
+    await created.screenshot({ path: `.cache/dialogs-new-workspace-${colorScheme}.png` });
+    await created.getByRole('button', { name: 'Close workspace dialog' }).click();
+    await expect(created).toHaveCount(0);
+  }
   assert.deepEqual(fixture.mutations, [], 'Moving dialogs must not start sessions, login or repository operations');
   assert.deepEqual(errors, []);
-  console.log('PASS: subscription, session and workspace dialogs drag by header, preserve input, keyboard movement/recenter, viewport bounds/resize, readable backdrop, Escape, close and reopen. Fake Runner only.');
+  console.log('PASS: subscription, session and workspace dialogs drag by header, preserve input, keyboard movement/recenter, viewport bounds/resize, readable backdrop, Escape, close and reopen, and give the focus back; a danger button reads on its fill and titles share one size, dark and light. Fake Runner only.');
 } finally { await browser?.close(); await server.close(); await fixture.close(); }

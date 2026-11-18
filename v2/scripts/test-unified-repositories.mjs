@@ -1,6 +1,7 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
-import { webkit, expect } from "@playwright/test";
+import { webkit, expect } from "./fixtures/playwright.mjs";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { startRunnerFixture } from "./fixtures/runner-ui.mjs";
@@ -18,7 +19,7 @@ f.githubRepositories.push({
   htmlUrl: "https://github.com/codefly-dev/module-datasource",
 });
 f.preparationFailures.add("github:fixture-team/api");
-const server = await createServer({
+const server = await createServer({...testViteCache(import.meta.url),
   configFile: false,
   root: fileURLToPath(new URL("../apps/web", import.meta.url)),
   plugins: [react()],
@@ -36,8 +37,12 @@ try {
     viewport: { width: 1280, height: 900 },
   });
   page.setDefaultTimeout(10000);
+  // Leaving a page (the reload, the goto below) cuts its in-flight polls, which WebKit
+  // reports as page errors ("access control checks") on the page being left: not failures. Anything else is.
   const errors = [];
-  page.on("pageerror", (e) => errors.push(String(e)));
+  let leaving = 0;
+  page.on("pageerror", (e) => { const text = String(e); if (leaving && /access control checks/.test(text)) return; errors.push(text); });
+  const leave = async (go) => { leaving++; try { await go(); } finally { leaving--; } };
   await page.goto(
     `http://127.0.0.1:${server.httpServer.address().port}/?view=workspace#token=${f.token}`,
   );
@@ -102,7 +107,7 @@ try {
   const created = f.collections.find((c) => c.name === "Datasource work");
   assert.equal(created.members.length, 2);
   await page.waitForLoadState("networkidle");
-  await page.reload();
+  await leave(() => page.reload());
   const row = page
     .locator(".workspace-row")
     .filter({ hasText: "Datasource work" });
@@ -124,11 +129,26 @@ try {
   await d
     .getByRole("checkbox", { name: "fixture-team/web", exact: true })
     .check();
+  // Start from: the added repository's branch starts from another branch of origin (⌥B, type, Enter).
+  await page.keyboard.press("Alt+KeyB");
+  const startPicker = d.getByRole("dialog", { name: "Start fixture-team/web from" });
+  await expect(startPicker.getByRole("combobox")).toBeFocused();
+  await page.keyboard.type("release/1.4");
+  await expect(startPicker.getByRole("option").first()).toContainText("release/1.4");
+  await page.keyboard.press("Enter");
+  await expect(startPicker).toHaveCount(0);
+  await expect(d).toBeVisible();
+  await expect(d.locator('[data-start-from="github:fixture-team/web"]')).toHaveText(/from\s*release\/1\.4/);
   await d
     .getByRole("button", { name: "Add to workspace", exact: true })
     .click();
   await expect(d).toHaveCount(0);
   assert.equal(created.members.length, 3);
+  assert.deepEqual(
+    f.mutations.filter((m) => m.method === "PrepareWorkspace").at(-1).body.startFrom,
+    { "github:fixture-team/web": "release/1.4" },
+    "Add repository sends the branch it starts from",
+  );
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(
     page.getByRole("tab", { name: "GitHub", exact: true }),
@@ -157,7 +177,7 @@ try {
   );
   await page.screenshot({ path: "/tmp/lazybox-unified-repositories.png" });
   // A long selection must not hide the primary action on small screens.
-  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace#token=${f.token}`);
+  await leave(() => page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace#token=${f.token}`));
   await page.route('**/GetRepositoryCatalog', route => route.fulfill({json:{
     entries:Array.from({length:20},(_,i)=>({identity:`github:large-team/service-with-a-long-name-${i}`,name:`large-team/service-with-a-long-name-${i}`})),
     sources:[{id:'github',state:'connected'}],refreshSeconds:300
@@ -196,6 +216,18 @@ try {
   await management.getByRole('button',{name:'Retry',exact:true}).click();
   await expect(management.getByRole('alert')).toHaveCount(0);
   await page.screenshot({path:'/tmp/lazybox-polish-workspace-repositories.png'});
+  await management.getByRole('button',{name:/Close/}).first().click().catch(()=>page.keyboard.press('Escape'));
+  // Double-clicking a repository chooses it and creates the workspace at once.
+  const before=f.mutations.filter(m=>m.method==='PrepareWorkspace').length;
+  await page.getByRole('button',{name:'New workspace',exact:true}).click();
+  const quick=page.getByRole('dialog',{name:'New workspace',exact:true});
+  await quick.getByRole('searchbox',{name:'Find repositories'}).fill('fixture-team/api');
+  await quick.locator('.repository-browser-row label').filter({has:page.getByRole('checkbox',{name:'fixture-team/api',exact:true})}).dblclick();
+  await expect(quick).toHaveCount(0);
+  const prepared=f.mutations.filter(m=>m.method==='PrepareWorkspace');
+  assert.equal(prepared.length,before+1,'one double-click creates exactly one workspace');
+  assert.deepEqual(prepared.at(-1).body.repositoryIdentities,['github:fixture-team/api']);
+  assert.ok(f.collections.some(c=>c.name==='api'),'the new workspace is named after its repository');
   assert.deepEqual(errors, []);
   console.log(
     "PASS one catalog across new workspace, add repositories, settings and reload; remote discovery without imports; selected identities survive partial failure; idempotent retry; invalid-name guard; 320/390px long selections, fixed actions, clear search, repository-detail retry; no duplicate GitHub tab.",

@@ -60,6 +60,13 @@ func TestGenericAttachmentDeliveryBothProviderShapesAndImageVision(t *testing.T)
 			if len(operation.Files) != 4 || len(operation.Images) != 1 || operation.Images[0].Data != base64.StdEncoding.EncodeToString(image) {
 				t.Fatal("generic files or native image input lost")
 			}
+			// One rule for every provider: text as its text, an image the agent
+			// sees as an image, the rest (a PDF, binary) by reference.
+			for i, want := range []string{agent.DeliverText, agent.DeliverFile, agent.DeliverFile, agent.DeliverImage} {
+				if operation.Files[i].Delivery != want {
+					t.Fatalf("%s: delivered as %q, want %q", operation.Files[i].Name, operation.Files[i].Delivery, want)
+				}
+			}
 			for i, file := range operation.Files {
 				actual, err := os.ReadFile(file.Path)
 				if err != nil || !bytes.Equal(actual, inputs[i].Data) {

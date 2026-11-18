@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runnerArguments } from './runner-command.mjs';
+import { userActionsFile } from './user-config.mjs';
 import { acquireLock, checkSubscriptionSelection, digestTree, environmentPaths, readValidatedRelease, sharedSubscriptionState, validateEnvironmentRoot } from './environments.mjs';
 
 const execute = promisify(execFile);
@@ -63,7 +64,7 @@ export async function servicePlan(environmentRoot, { env = process.env, executab
   await access(snippets, constants.X_OK);
   const subscriptions = await sharedSubscriptionState(environmentRoot);
   if (subscriptions) await checkSubscriptionSelection(environmentRoot, subscriptions);
-  const args = runnerArguments({ paths, source, snippetAdapter: snippets, snippetDirectory: source, subscriptionState: subscriptions });
+  const args = runnerArguments({ paths, source, snippetAdapter: snippets, snippetDirectory: source, subscriptionState: subscriptions, actionsFile: userActionsFile(env) });
   // Only these explicitly public values reach the durable service definition.
   // Login tokens and the private endpoint's bearer never become arguments/env.
   const publicEnv = { PATH: (env.PATH || '').split(delimiter).filter(isAbsolute).join(delimiter), GOMAXPROCS: '1', GOFLAGS: '-p=1' };

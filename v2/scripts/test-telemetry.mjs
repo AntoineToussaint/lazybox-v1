@@ -1,11 +1,12 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
-import {chromium,webkit,expect} from '@playwright/test';
+import {chromium,webkit,expect} from './fixtures/playwright.mjs';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const fixture=await startRunnerFixture();
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 let browser;
 try{
  await server.listen();browser=await (process.env.TEST_WEBKIT?webkit:chromium).launch({headless:true});const page=await browser.newPage({viewport:{width:1500,height:1100}});page.setDefaultTimeout(10000);
@@ -14,17 +15,24 @@ try{
  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/?view=workspace#token=${fixture.token}`);
  await page.getByRole('combobox',{name:'Workspace',exact:true}).selectOption('alpha');await page.getByRole('combobox',{name:'Session',exact:true}).selectOption('alpha-session');
  const trigger=page.getByRole('button',{name:'Context and token cost'});await expect(trigger).toContainText('8%');
- const messagesBefore=await page.locator('.messages').boundingBox();await trigger.click();
+ const messagesBefore=await page.locator('.messages:visible').boundingBox();await trigger.click();
  const panel=page.locator('.context-popover');await expect(panel).toBeVisible();
- assert.deepEqual(await page.locator('.messages').boundingBox(),messagesBefore,'context should not displace conversation');
+ assert.deepEqual(await page.locator('.messages:visible').boundingBox(),messagesBefore,'context should not displace conversation');
  await expect(panel).toContainText('80K');await expect(panel).toContainText('1M');
  await expect(panel.locator('.context-deferred')).toContainText('Outside context');await expect(panel.getByRole('meter')).toHaveAttribute('aria-valuenow','80000');
  await expect(panel.locator('.context-meter>span').first()).toHaveAttribute('style',/width: 2.45%;/);
  await page.screenshot({path:'.cache/telemetry-context.png'});
  await panel.locator('.token-cost>summary').click();
- await expect(panel).toContainText('API-equivalent');await expect(panel).toContainText('1 unpriced');
+ await expect(panel).toContainText('API-equivalent');
+ // What has no price says which model and why, never "+ unpriced".
+ await expect(panel.getByRole('note').filter({hasText:'Not priced'}).locator('li')).toHaveText('fixture: No price1 request');await expect(panel).not.toContainText('+ unpriced');
+ await expect(panel).toContainText('1 request did not report all of its usage.');
  await page.keyboard.press('Escape');await expect(panel).not.toBeVisible();await expect(trigger).toBeFocused();
- await page.setViewportSize({width:420,height:850});await trigger.click();await expect(panel).toBeVisible();const bounds=await panel.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=420);await page.screenshot({path:'.cache/telemetry-context-narrow.png'});await page.keyboard.press('Escape');await page.setViewportSize({width:1500,height:1100});
+ await page.setViewportSize({width:420,height:850});
+ // At phone width the header folds the meter into its ⋯ details (chat-header R11/R12): open that first.
+ // Wait for the header to fold (it re-lays out after the resize), then open its details.
+ const more=page.getByRole('button',{name:/^More details/});await expect(more).toBeVisible();await more.click();
+ await trigger.click();await expect(panel).toBeVisible();const bounds=await panel.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=420);await page.screenshot({path:'.cache/telemetry-context-narrow.png'});await page.keyboard.press('Escape');await page.setViewportSize({width:1500,height:1100});
  await page.route('**/Info',route=>route.fulfill({status:503,json:{code:'unavailable',message:'Fixture Runner restarting'}}));
  await expect(page.getByText('Runner disconnected.',{exact:true})).toBeVisible({timeout:10000});await expect(page.getByRole('button',{name:'Retry now',exact:true})).toBeVisible();
  await expect(page.getByText('Could not load saved conversations.',{exact:true})).toHaveCount(0);

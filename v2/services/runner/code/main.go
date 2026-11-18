@@ -23,9 +23,11 @@ import (
 	"context"
 	"fmt"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/AntoineToussaint/lazybox/v2/pkg/adapters"
+	"github.com/codefly-dev/core/resources"
 	"github.com/codefly-dev/core/shared"
 	"github.com/codefly-dev/core/standards"
 
@@ -76,11 +78,13 @@ func main() {
 		panic(fmt.Errorf("cannot resolve this service's %s address: %w", standards.GRPC, err))
 	}
 	config.EndpointGrpcPort = grpcInstance.Port
+	config.EndpointGrpcHost = listenerHost(grpcInstance.Hostname)
 	connectInstance, err := codefly.For(ctx).API(standards.CONNECT).ResolveNetworkInstance()
 	if err != nil {
 		panic(fmt.Errorf("cannot resolve this service's %s address: %w", standards.CONNECT, err))
 	}
 	config.EndpointConnectPort = shared.Pointer(connectInstance.Port)
+	config.EndpointConnectHost = listenerHost(connectInstance.Hostname)
 	if configure != nil {
 		clean, err := configure(ctx, config)
 		if err != nil {
@@ -121,4 +125,23 @@ func main() {
 	server.Stop()
 	fmt.Println("got interruption signal")
 
+}
+
+// listenerHost preserves the resolved own endpoint for host-native execution.
+// Containers keep wildcard ingress: their own carrier is localized for self-dial,
+// not a container-interface bind address. Older renders without a nonempty context carrier
+// retain that behavior; an explicitly supplied context follows Core's semantics.
+func listenerHost(hostname string) string {
+	if _, present := codefly.RuntimeValue("RUNTIME_CONTEXT"); !present {
+		return ""
+	}
+	switch resources.RuntimeContextFromEnv().GetKind() {
+	case resources.RuntimeContextNative, resources.RuntimeContextNix:
+		if strings.TrimSpace(hostname) == "" {
+			panic("cannot start native listener: resolved endpoint hostname is empty")
+		}
+		return hostname
+	default:
+		return ""
+	}
 }

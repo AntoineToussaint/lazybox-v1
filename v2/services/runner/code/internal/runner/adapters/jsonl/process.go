@@ -14,24 +14,41 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/processguard"
 	"github.com/AntoineToussaint/lazybox/v2/internal/redact"
 	"github.com/AntoineToussaint/lazybox/v2/internal/sessionhost"
 )
 
 type Message struct {
-	ID     json.RawMessage `json:"id,omitempty"`
-	Method string          `json:"method,omitempty"`
-	Params json.RawMessage `json:"params,omitempty"`
-	Result json.RawMessage `json:"result,omitempty"`
-	Error  json.RawMessage `json:"error,omitempty"`
+	// JSONRPC is "2.0" on the wire of a peer that requires it (Options.Version).
+	JSONRPC string          `json:"jsonrpc,omitempty"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method,omitempty"`
+	Params  json.RawMessage `json:"params,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   json.RawMessage `json:"error,omitempty"`
 	// Seq is the session host's transport cursor (zero for a local pipe).
 	// Redelivered marks a request the agent still waits on after a Runner restart.
 	Seq         uint64 `json:"-"`
 	Redelivered bool   `json:"-"`
 }
 
+// Options adapt the connection to a peer's dialect of JSON lines. The zero
+// value is the Lazybox workers' and Codex app-server's: no version member,
+// and a reply to no call of this Process is dropped.
+type Options struct {
+	// Version, when set, is written as every message's "jsonrpc" member.
+	// JSON-RPC 2.0 peers (ACP agents) reject a message without it.
+	Version string
+	// Unmatched hands a reply that answers no call of this Process to Receive
+	// instead of dropping it: the answer to a request written with Send, or to
+	// a call a previous Runner made on the same host before it went away.
+	Unmatched bool
+}
+
 type Process struct {
+	opts    Options
 	mu      sync.Mutex
 	writeMu sync.Mutex
 	stdin   io.WriteCloser
@@ -47,10 +64,11 @@ type Process struct {
 	once    sync.Once
 	stderr  *redact.Tail
 	// host is set when a detached session host owns the native process.
-	host     *sessionhost.Client
-	hostRoot string
-	detached bool
-	closing  bool
+	host        *sessionhost.Client
+	hostBackend sessionhost.Backend
+	hostRoot    string
+	detached    bool
+	closing     bool
 	// Close may race the context watcher; terminate exactly once.
 	closeHostOnce sync.Once
 	closeHostErr  error
@@ -65,6 +83,11 @@ type Process struct {
 }
 
 func Start(ctx context.Context, binary string, args, env []string, cwd string) (*Process, error) {
+	return StartWith(ctx, binary, args, env, cwd, Options{})
+}
+
+// StartWith is Start speaking the dialect opts describes.
+func StartWith(ctx context.Context, binary string, args, env []string, cwd string, opts Options) (*Process, error) {
 	cmd := exec.Command(binary, args...)
 	cmd.Env = env
 	cmd.Dir = cwd
@@ -92,7 +115,7 @@ func Start(ctx context.Context, binary string, args, env []string, cwd string) (
 		out.Close()
 		return nil, err
 	}
-	p := &Process{stdin: in, cmd: cmd, guard: guard, pending: map[string]chan Message{}, events: make(chan Message, 256), done: make(chan struct{}), exited: make(chan struct{}), stderr: diagnostic}
+	p := &Process{opts: opts, stdin: in, cmd: cmd, guard: guard, pending: map[string]chan Message{}, events: make(chan Message, 256), done: make(chan struct{}), exited: make(chan struct{}), stderr: diagnostic}
 	readDone := make(chan struct{})
 	go func() {
 		defer func() { out.Close(); close(readDone) }()
@@ -113,8 +136,11 @@ func Start(ctx context.Context, binary string, args, env []string, cwd string) (
 					case ch <- m:
 					default:
 					}
+					continue
 				}
-				continue
+				if !p.opts.Unmatched {
+					continue
+				}
 			}
 			select {
 			case p.events <- m:
@@ -131,12 +157,13 @@ func Start(ctx context.Context, binary string, args, env []string, cwd string) (
 		if err == nil {
 			err = io.EOF
 		}
-		p.stop(err)
+		// The process is gone (reaped above): its stream ended with it.
+		p.stop(fmt.Errorf("%w: %w", agent.ErrProcessExited, err))
 	}()
 	go func() {
 		_, exitErr := guard.Wait()
 		if exitErr != nil {
-			p.stop(exitErr)
+			p.stop(fmt.Errorf("%w: %w", agent.ErrProcessExited, exitErr))
 		}
 		timer := time.NewTimer(time.Second)
 		defer timer.Stop()
@@ -178,6 +205,7 @@ func (p *Process) stop(err error) {
 	})
 }
 func (p *Process) write(m Message) error {
+	m.JSONRPC = p.opts.Version
 	p.writeMu.Lock()
 	defer p.writeMu.Unlock()
 	if p.host != nil {
@@ -204,8 +232,35 @@ func (p *Process) Reply(id json.RawMessage, result any) error {
 	return p.write(Message{ID: id, Result: b})
 }
 func (p *Process) Reject(id json.RawMessage, reason string) error {
-	b, _ := json.Marshal(map[string]any{"code": -32601, "message": reason})
+	return p.RejectWith(id, -32601, reason)
+}
+
+// RejectWith answers a peer's request with a JSON-RPC error of this code.
+func (p *Process) RejectWith(id json.RawMessage, code int, reason string) error {
+	b, _ := json.Marshal(map[string]any{"code": code, "message": reason})
 	return p.write(Message{ID: id, Error: b})
+}
+
+// NewID allocates a request id no call of this Process uses, for Request.
+func (p *Process) NewID() json.RawMessage {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.next++
+	id, _ := json.Marshal(fmt.Sprintf("lazybox-%d", p.next))
+	return id
+}
+
+// Request writes request id without waiting for its reply. The reply reaches
+// Receive (Options.Unmatched) in order with the peer's other lines, so it is
+// recorded like them: a request whose answer may outlive this Runner, such as
+// a turn that ends long after it starts. The caller records id first, so the
+// reply can never arrive before the caller knows what it answers.
+func (p *Process) Request(id json.RawMessage, method string, params any) error {
+	b, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	return p.write(Message{ID: id, Method: method, Params: b})
 }
 
 func (p *Process) Call(ctx context.Context, method string, params any) (json.RawMessage, error) {

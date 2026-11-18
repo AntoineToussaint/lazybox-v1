@@ -6,6 +6,8 @@ import './github.css';
 
 type Props = { onConnectionChange?():void; openSignIn?(url: string): Promise<void>; copySignInCode?(code: string): Promise<void> };
 const waiting = (flow?: GitHubSignIn) => flow?.state === 'awaiting_login';
+// GitHub pre-fills a classic token's scopes and note from these query parameters.
+const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=repo&description=Lazybox';
 export function GitHubSettings({ openSignIn, copySignInCode, onConnectionChange }: Props) {
   const { api } = useRunner();
   const [connection, setConnection] = useState<GitHubConnection>();
@@ -83,7 +85,14 @@ export function GitHubSettings({ openSignIn, copySignInCode, onConnectionChange 
       {connection.error && <p className="settings-error" role="alert">{connection.error}</p>}
       {connection.state !== 'connected' && !waiting(flow) && (personal || !connection.authMethod && connection.state !== 'needs_attention') && <div className="github-setup">
         <h3>Connect with a personal token</h3>
-        <p>Use your own GitHub access. No GitHub App installation or GitHub CLI is required.</p>
+        <p>Sees every repository your GitHub account can see, including organization repositories. No GitHub App installation is needed.</p>
+        <ol className="github-token-steps">
+          <li><button disabled={!!busy} onClick={() => void run('Opening GitHub', () => open(TOKEN_URL))}>Create a token on GitHub ↗</button> This opens a classic token with the <code>repo</code> scope and a name already filled in. Pick an expiration, then click <strong>Generate token</strong> at the bottom.</li>
+          <li>Copy the token (it starts with <code>ghp_</code>). GitHub shows it only once.</li>
+          <li>If your organization uses single sign-on, open <button disabled={!!busy} onClick={() => void run('Opening GitHub', () => open('https://github.com/settings/tokens'))}>your tokens ↗</button>, click <strong>Configure SSO</strong> next to the new token and <strong>Authorize</strong> each organization. Without this, that organization’s repositories stay hidden.</li>
+          <li>Paste it below.</li>
+        </ol>
+        <p>Already signed in with the GitHub CLI? Run <code>gh auth token</code> in a terminal and paste the output. It already has your organization and SSO access. Signing out of the CLI invalidates it.</p>
         <form onSubmit={event => { event.preventDefault(); const token = personalToken.trim(); setPersonalToken(''); void run('Checking token', async signal => {
           const state = await api.connectGitHubPersonalToken({ token }, { signal });
           if (!signal.aborted) { setConnection(state); setFlow(undefined); onConnectionChange?.(); }
@@ -91,8 +100,7 @@ export function GitHubSettings({ openSignIn, copySignInCode, onConnectionChange 
           <label>Personal access token<input type="password" autoComplete="off" spellCheck={false} value={personalToken} disabled={!!busy} onChange={event => setPersonalToken(event.target.value)} /></label>
           <button className="primary" disabled={!!busy || !personalToken.trim()} type="submit">Connect with token</button>
         </form>
-        <button disabled={!!busy} onClick={() => void run('Opening GitHub', () => open('https://github.com/settings/tokens'))}>Manage tokens on GitHub ↗</button>
-        <details><summary>Which token should I use?</summary><p>A classic token with the repo scope supports private repositories you own or collaborate on across organizations. That scope also permits writes, although Lazybox’s integration only reads and clones. A fine-grained token can limit access to selected repositories: allow Contents, Issues and Pull requests read access. Fine-grained tokens have limitations for outside collaborators and multiple organizations. Organization approval or SSO authorization may still be required.</p></details>
+        <details><summary>Why a classic token?</summary><p>The <code>repo</code> scope is the only GitHub token that reaches private repositories across several organizations. It also permits writes, but Lazybox only reads and clones. A fine-grained token is limited to one owner per token and to the repositories you select. It needs read access to Contents, Issues and Pull requests, and the organization may have to approve it.</p></details>
         <p>Saved privately on this Runner. Your system Git, GitHub CLI and agent sign-ins stay unchanged. Tokens are cleared from this form after submission.</p>
       </div>}
       {connection.state !== 'connected' && !waiting(flow) && !personal && connection.clientId && <button disabled={!!busy} onClick={() => void begin()}>Connect with GitHub App</button>}

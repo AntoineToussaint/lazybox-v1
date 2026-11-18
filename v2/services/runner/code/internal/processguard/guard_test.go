@@ -259,3 +259,30 @@ func TestCancelDuringProgramStartLeavesNoSurvivor(t *testing.T) {
 		t.Fatalf("owned programs survived cancellation: %s", survivors)
 	}
 }
+
+// A group kill reaches only the processes already in the group: a descendant
+// forked while the kill is delivered can be missed (macOS does not make the two
+// atomic) and keep running, holding the output pipe, with no owner. A program
+// that forks continuously makes the kill race a fork every time.
+func TestCancelWhileTheProgramForksLeavesNoSurvivor(t *testing.T) {
+	marker := "lazybox-guard-fork-race-" + strconv.Itoa(os.Getpid())
+	t.Cleanup(func() { _ = exec.Command("/usr/bin/pkill", "-f", marker).Run() })
+	for i := 0; i < 10; i++ {
+		var out bytes.Buffer
+		cmd := exec.Command("/bin/sh", "-c", `while :; do sleep 60 & done`, marker)
+		cmd.Stdout = &out
+		g, err := Start(cmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(20 * time.Millisecond) // Let the program reach its fork loop.
+		_ = g.Stop()
+		if _, err = g.Wait(); err != nil {
+			t.Fatalf("iteration %d: cleanup unconfirmed while the program forks: %v", i, err)
+		}
+		survivors, _ := exec.Command("/usr/bin/pgrep", "-f", marker).Output()
+		if len(bytes.TrimSpace(survivors)) != 0 {
+			t.Fatalf("iteration %d: owned programs survived cancellation: %s", i, survivors)
+		}
+	}
+}

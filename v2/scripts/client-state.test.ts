@@ -53,6 +53,21 @@ test('a dropped stream resumes after its own last cursor without duplicate outpu
   assert.equal(statuses.at(-1), 'Complete');
 });
 
+test('a heartbeat on an idle stream says Live, after a first connection and after a reconnection', async () => {
+  const received: bigint[] = [], statuses: string[] = [];
+  const control = new AbortController();
+  let calls = 0;
+  await follow(async function* (after) {
+    // Caught up at once: nothing to replay, the Runner's heartbeat repeats the cursor.
+    if (++calls === 1) { yield { cursor: after, heartbeat: true }; throw new ConnectError('the Runner is restarting', Code.Unavailable); }
+    yield { cursor: after, heartbeat: true };
+    queueMicrotask(() => control.abort());
+    await new Promise(resolve => control.signal.addEventListener('abort', resolve, { once: true }));
+  }, control.signal, event => received.push(event.cursor), status => statuses.push(status), undefined, 7n);
+  assert.deepEqual(received, [], 'a heartbeat is no record');
+  assert.deepEqual(statuses.filter(status => !status.startsWith('Disconnected')), ['Connecting', 'Live', 'Reconnecting', 'Live']);
+});
+
 test('gaps and stale execution identities are explicit terminal outcomes', async () => {
   const received: bigint[] = [], statuses: string[] = [];
   await follow(async function* () { yield { cursor: 2n }; }, new AbortController().signal, event => received.push(event.cursor), status => statuses.push(status));

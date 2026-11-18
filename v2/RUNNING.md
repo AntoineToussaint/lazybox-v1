@@ -36,7 +36,9 @@ The composer uses **Enter to send** and **Shift+Enter for a new line**. Confirmi
 
 Subscription cards use a compact responsive grid, retaining account names, email addresses, status, usage windows and independent refresh actions. A wide window fits four cards per row; narrow windows use one column. The **Monitor** page is currently a workspace selector and command-output view, not an account or agent-health dashboard. `make dev` uses automatic UI/native/backend reload; see [development reload boundaries](ENVIRONMENTS.md). `make desktop` and Working retain bundled UI assets.
 
-**Attach files** and drag-and-drop into an active chat accept any file type and multiple selections. Dropping adds files to the draft without sending; folders are rejected. The client sends file bytes with the message; it never sends a client-local path for the Runner to guess. The Runner advertises the selection limits through `Info`: four files, 20 MiB per file, and 20 MiB total per message. Selected files can be removed before sending, and an unchanged manual retry preserves the operation identity.
+**Attach files** and drag-and-drop into an active chat accept any file type and multiple selections. Dropping adds files to the draft without sending; folders are rejected. The client sends file bytes with the message; it never sends a client-local path for the Runner to guess. The Runner advertises the selection limits through `Info`: four files, 20 MiB per file, and 20 MiB total per message. Selected files can be removed before sending, and an unchanged manual retry preserves the operation identity. Pasting an image into the message box (a screenshot from the clipboard) attaches it the same way, named `Pasted image <date> at <time>.png`; a paste that carries text stays text, so copying cells from a spreadsheet does not attach their picture.
+
+Attached images show as thumbnails, in the composer and in sent messages, in every chat window. Resting the pointer on one, or moving keyboard focus to it, shows it larger in a floating card (within 60% of the window, never over its thumbnail); clicking it, or Enter, opens it full size, and Esc closes it. Thumbnails are a small copy decoded once off the main thread; every object URL is revoked. A sent image is read back from the Runner with the owner-only `ReadAttachment` RPC, only when its message scrolls into view, and only for a file the Runner retained as an attachment of a PNG, JPEG, GIF or WebP image (detected from the bytes, at most 20 MiB). Other files, and images the Runner no longer has (a deleted conversation's), show as named chips.
 
 The Runner retains files under its resolved state directory and gives the agent a local file reference. Agents read or extract formats with their normal tools and permissions; uploading a format does not promise that every model can interpret it directly. Supported PNG/JPEG/WebP/GIF files up to 6 MiB are additionally sent as native image inputs. Larger images and other formats remain generic files. File-only messages are supported, and attachment names/sizes replay with the accepted message.
 
@@ -81,9 +83,9 @@ Optional `connection.fetch` supplies a platform transport: Tauri provides the of
 
 Codefly binds temporary ports and injects endpoint carriers. The Runner resolves its Connect address through the Codefly SDK. No daemon address or port is inferred from V1 state.
 
-`BENCH_STATE` selects the isolated state directory; the Makefile default is `v2/.cache/bench`. `make run BENCH_STATE=/absolute/test-state` overrides it. Each Runner locks its state directory and writes an owner-only `endpoint.json` containing its actual URL and bearer. With no configured state, the service creates a fresh OS temporary directory. Stopping the Runner ends owned processes; it retains evidence files. Remove a test directory only after its Runner has stopped and its evidence is no longer needed.
+`BENCH_STATE` selects the isolated state directory; the Makefile default is `v2/.cache/bench`. `make run BENCH_STATE=/absolute/test-state` overrides it. Each Runner locks its state directory and writes an owner-only `endpoint.json` containing its actual URL and bearer. Agents never receive that file: each execution gets its own endpoint file whose credential can only publish that execution's console (see [Agent credentials](RESOURCE_OWNERSHIP.md#agent-credentials)). With no configured state, the service creates a fresh OS temporary directory. Stopping the Runner ends owned processes; it retains evidence files. Remove a test directory only after its Runner has stopped and its evidence is no longer needed.
 
-The generated Codefly listener currently binds all interfaces even for a native endpoint carrier. Application RPCs require the private bearer on **both** protocols; health is public. This is an experimental local authority with no Hub enrollment or production TLS configuration. Native listener scope is a Codefly-owned limitation, not a separate application listener.
+The Runner's gRPC and Connect listeners answer on loopback only. Codefly decides the bind host: go-grpc `0.1.70` and later bind the host the service's own endpoint carrier names, `localhost` in a native run (`0.1.69` bound every interface). The Runner refuses to start if any listener's host is not loopback, including an empty one, which binds every interface (`listen.go`; `TestRunnerListenersAnswerOnlyOnLoopback` dials each port from this machine's non-loopback addresses). Application RPCs also require the private bearer on **both** protocols; health is public. This is an experimental local authority with no Hub enrollment or production TLS configuration.
 
 ## Runner options and metering gateway
 
@@ -137,7 +139,7 @@ Exhausted subscription capacity, temporary throttling, authentication failure, b
 The default inherited profiles keep the current provider credential/configuration
 environment. Capacity or authentication errors do not switch subscriptions,
 inject another API key, or trigger logout/login. Changing the selected account
-requires an explicit profile choice or an explicitly enabled rotation pool; a gateway credential route also requires
+requires an explicit profile choice or rotation to another enrolled, isolated subscription of the same provider (on by default, see below); a gateway credential route also requires
 explicit configuration. Implementation checks use isolated fixture profiles.
 
 ## Test client
@@ -165,18 +167,39 @@ Agent operations accept `--id` for idempotent retries. Queue acceptance, submiss
 
 `exec --wait` returns the actual observed nonzero process status. A background command returns its ID immediately. Managed commands capture stdout/stderr channels and cancel their process group. This implementation targets macOS/Linux, not Windows or interactive PTYs.
 
+To run a command so that the console shows all of it and the agent gets a compact, failure-first view with the real exit status (see [command output](COMMAND_OUTPUT.md)):
+
+```sh
+bin/lazybox run -- go test ./...
+```
+
 To publish an existing pipe while keeping its output visible to the agent:
 
 ```sh
 set -o pipefail
 some-command 2>&1 | bin/lazybox log --session EXECUTION --title tests
+# In a workspace terminal, no flag: the run goes to the workspace's console.
+some-command 2>&1 | lazybox log --title "go test ./..." [--to CONVERSATION]
 ```
 
-The pipe publisher echoes stdin and returns a visible failure if publication fails, including startup failure. Capture EOF does not establish the producer's exit status; use shell `pipefail` or managed execution when that status matters. Spawned managed commands inherit the endpoint file and execution identity so they can use this CLI without guessing a daemon path.
+To check an orchestration process file ([Orchestration §4](ORCHESTRATION.md#4-the-process-file)) before committing it, from the repository root (no Runner needed):
+
+```sh
+bin/lazybox process validate            # .lazybox/process.yaml over the presets; exits 1 on an error
+bin/lazybox process explain task.reported
+bin/lazybox process show [--json]       # the effective process
+bin/lazybox process validate --workspace COLLECTION   # the Runner's view: your process.yaml and ceiling too
+```
+
+The user layer is `process.yaml` in the Runner's state directory (`processFile` in the Runner config); pass it to the file-only commands with `--user`.
+
+The pipe publisher echoes stdin and returns a visible failure if publication fails, including startup failure. Capture EOF does not establish the producer's exit status; use shell `pipefail` or managed execution when that status matters. Agents and their managed commands get their execution's own endpoint file and identity so `lazybox run` and `lazybox log` work without guessing a daemon path. That credential publishes only that execution's console; `approve`, `answer`, `send`, `close` and every other verb need the owner's `endpoint.json`.
 
 ## Retention and failure behavior
 
-Each event or command journal defaults to 8 MiB, configurable from 4 KiB for command output up to 64 MiB per stream. Session event journals require at least 1 KiB. The registry admits at most 32 executions and 128 commands in a Runner lifetime, with 64 queued messages and 4,096 operations per session. It never silently rotates evidence. Exceeding a capture budget makes the failure visible; managed output failure terminates the command. An event capture failure faults the session and ends its adapter.
+Each command output journal defaults to 8 MiB, configurable from 4 KiB up to 64 MiB. A conversation's event journal is a chain of segments: `sessions/<id>.jsonl` is the first, `<id>.jsonl.1`, `<id>.jsonl.2`… follow, each up to `eventBudget` (default 8 MiB, from 1 KiB up to 64 MiB). When the next event does not fit, the journal starts the next segment; every reader (replay, the latest turns, earlier pages, the turn index, history, deletion) reads the chain as one journal. A journal from before segments is the chain's first segment. `eventHistoryBudget` bounds all the segments of one conversation attempt together: 2 GiB by default (thousands of turns at the ~240 KB a turn real conversations take), at most 64 GiB. Nothing is ever compacted or dropped: segments are evidence, and a resumed conversation starts a new attempt with its own journal. The registry admits at most 32 executions and 128 commands in a Runner lifetime, with 64 queued messages and 4,096 operations per session. It never silently rotates evidence. Exceeding a capture budget makes the failure visible; managed output failure terminates the command. A journal write the disk refuses is retried with the same event while the agent keeps running (its output waits in its session host), and the conversation says so. A journal that can take nothing more (its history budget spent) faults the conversation with event capture failed but never stops its agent; re-attaching it settles the fault once the journal takes writes again. Either way the conversation can still be ended, and is saved ended even when nothing more can be journaled. A single event larger than a segment gets a segment of its own.
+
+A journal whose last record was cut short (power loss, a full disk) opens without it; its bytes are kept beside the segment in `<segment>.torn`. A write that fails part way is undone at once, so readers carry on and the next event takes its place. A journal with a damaged record in the middle is read up to it: the conversation stays in History with the reason as its fault, and can be deleted.
 
 Generic attachments have a separate limit of 64 MiB and 256 retained files per execution, including zero-byte files. The store validates complete batches, rejects path traversal, uses private files, deduplicates identical content/name retries, and rolls back new files on batch write failure. Journal events contain names, media types, sizes, and resolved file references, not raw file contents. Files remain as evidence until the stopped Runner's state is explicitly cleaned; full Runner restart does not restore the in-memory attachment inventory. Historical transcripts and attachment references remain readable.
 
@@ -208,7 +231,9 @@ underlying text readable. Double-click the header to recenter, or focus the
 header and use arrow keys (Shift for larger steps) and Home. Dialogs stay within
 the window, adjust when it resizes and recenter when reopened. Form controls,
 focus trapping and Escape retain native dialog behavior. Native desktop windows
-move using their standard operating-system title bars. `make test-dialogs`
+have no separate title bar on macOS: each window's own header is it, with the
+window buttons at its left, and its empty parts move the window (a
+double-click does what System Settings says; `npm run test:title-bar`). `make test-dialogs`
 exercises the shared dialog interactions against a synthetic Runner.
 
 Open **Settings** from the main workspace, then **Subscriptions**. **Add
@@ -255,15 +280,12 @@ bin/lazybox account-login --state "$RUNNER_STATE" --provider codex --profile cod
 ```
 
 Each invokes the native Codex browser login with its own credential store.
-For Claude, obtain a subscription token once through the provider-supported
-`CLAUDE_CONFIG_DIR="$(mktemp -d)" claude setup-token` flow, then import it privately. Do not put the token in
-an argument or a shell command saved to history. For example, in zsh:
-
-```sh
-read -rs 'subscription_token?Paste Claude subscription setup-token: '
-printf '%s' "$subscription_token" | bin/lazybox account-login --state "$RUNNER_STATE" --provider claude --profile claude-work --token-stdin
-unset subscription_token
-```
+Claude is refused here: Lazybox does not import or store a Claude
+subscription token ([CLAUDE_COMPLIANCE.md](CLAUDE_COMPLIANCE.md)). Give Claude
+agents an Anthropic API key in Settings → Agents & workspaces → Claude, set a
+cloud provider's variables (`CLAUDE_CODE_USE_BEDROCK=1` and so on) in the
+Runner's environment, or sign in to Claude Code yourself (`claude`, then
+`/login`); the built-in `claude-default` account uses that sign-in.
 
 Repeat enrollment for each account with a distinct profile ID. The Runner
 loads private `accounts/profiles.json` metadata on startup, alongside configured
@@ -272,8 +294,14 @@ do initial setup before starting work; executions are not restored by a Runner
 restart.
 Do not duplicate enrolled IDs in the Runner configuration.
 
-Select **Subscription rotation** in session startup and check the isolated
-profiles that may be used. Or pass an explicit pool through the CLI:
+Rotation is off unless an extension's account policy turns it on
+([EXTENSIONS.md](EXTENSIONS.md#account-policy)): add and approve **Subscription
+rotation** in Settings → Extensions, and a new conversation may then switch to
+every other enrolled subscription of its provider. Uncheck **Switch
+subscriptions automatically** in session startup (CLI: `--no-rotate`) to keep
+one conversation on its account, or turn off **Automatic switching** on an
+account in Settings → Subscriptions to leave it out of new conversations. Or
+pass an explicit pool through the CLI (ignored without an account policy):
 
 ```sh
 bin/lazybox --endpoint "$ENDPOINT" open --profile claude-work --collection "$COLLECTION" --rotate-profiles claude-work,claude-personal
@@ -299,7 +327,7 @@ When starting a conversation, expand **Model, gateway & permissions** and choose
 **Metered** to route supported provider requests through the Runner's local
 metering gateway. The selected subscription still supplies authentication.
 The chat's context disclosure shows provider-reported usage; missing categories
-or capacities stay unknown. Add **Usage & cost** through **Customize page** to
+or capacities stay unknown. Add **Usage & cost** through **Panels** in the workspace header to
 view the workspace aggregate across conversations and account rotation attempts.
 Workspace-bound Ask Lazybox planning conversations use the same attribution.
 

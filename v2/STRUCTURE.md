@@ -1,6 +1,6 @@
 # Lazybox V2 source structure
 
-V2 is a Codefly workspace. The first implemented service is the **Runner**, created with `codefly.dev/go-grpc:0.1.69`. Its Go module lives under the generated service layout. The npm workspace remains at this folder's root.
+V2 is a Codefly workspace. The first implemented service is the **Runner**, created with `codefly.dev/go-grpc:0.1.69` and rendered with `0.1.70` since 2026-11-16. Its Go module lives under the generated service layout. The npm workspace remains at this folder's root.
 
 ```text
 v2/
@@ -24,9 +24,11 @@ v2/
         commands/                   managed processes, pipe capture, byte reads
         attachments/                bounded private generic-file retention and replay metadata
         checkpoints/                explicit work handoff
+        codecheckpoints/            per-turn file checkpoints (private Git refs), revert and undo
         adapters/codex/             native app-server adapter
         adapters/claude/            supported SDK worker adapter
         adapters/jsonl/             supervised local process transport
+      internal/work/                missions: event log, fold, derived board, prompt log
       internal/transport/           one gRPC implementation and authority checks
       cmd/lazybox/                  test client and transparent log publisher
       tests/integration/            real harness and deterministic gateway cases

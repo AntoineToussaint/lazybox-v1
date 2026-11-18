@@ -43,6 +43,12 @@ const (
 	// RunnerServicePrepareWorkspaceProcedure is the fully-qualified name of the RunnerService's
 	// PrepareWorkspace RPC.
 	RunnerServicePrepareWorkspaceProcedure = "/lazybox.bench.v1.RunnerService/PrepareWorkspace"
+	// RunnerServiceListRepositoryBranchesProcedure is the fully-qualified name of the RunnerService's
+	// ListRepositoryBranches RPC.
+	RunnerServiceListRepositoryBranchesProcedure = "/lazybox.bench.v1.RunnerService/ListRepositoryBranches"
+	// RunnerServiceRefreshRepositoryIdentityProcedure is the fully-qualified name of the
+	// RunnerService's RefreshRepositoryIdentity RPC.
+	RunnerServiceRefreshRepositoryIdentityProcedure = "/lazybox.bench.v1.RunnerService/RefreshRepositoryIdentity"
 	// RunnerServiceVersionProcedure is the fully-qualified name of the RunnerService's Version RPC.
 	RunnerServiceVersionProcedure = "/lazybox.bench.v1.RunnerService/Version"
 	// RunnerServiceGetRunnerSettingsProcedure is the fully-qualified name of the RunnerService's
@@ -54,8 +60,29 @@ const (
 	// RunnerServiceSetModelPriceProcedure is the fully-qualified name of the RunnerService's
 	// SetModelPrice RPC.
 	RunnerServiceSetModelPriceProcedure = "/lazybox.bench.v1.RunnerService/SetModelPrice"
+	// RunnerServiceGetClaudeAuthProcedure is the fully-qualified name of the RunnerService's
+	// GetClaudeAuth RPC.
+	RunnerServiceGetClaudeAuthProcedure = "/lazybox.bench.v1.RunnerService/GetClaudeAuth"
+	// RunnerServiceSetClaudeApiKeyProcedure is the fully-qualified name of the RunnerService's
+	// SetClaudeApiKey RPC.
+	RunnerServiceSetClaudeApiKeyProcedure = "/lazybox.bench.v1.RunnerService/SetClaudeApiKey"
+	// RunnerServiceListThemesProcedure is the fully-qualified name of the RunnerService's ListThemes
+	// RPC.
+	RunnerServiceListThemesProcedure = "/lazybox.bench.v1.RunnerService/ListThemes"
+	// RunnerServiceCreateThemeProcedure is the fully-qualified name of the RunnerService's CreateTheme
+	// RPC.
+	RunnerServiceCreateThemeProcedure = "/lazybox.bench.v1.RunnerService/CreateTheme"
 	// RunnerServiceInfoProcedure is the fully-qualified name of the RunnerService's Info RPC.
 	RunnerServiceInfoProcedure = "/lazybox.bench.v1.RunnerService/Info"
+	// RunnerServiceGetProviderAvailabilityProcedure is the fully-qualified name of the RunnerService's
+	// GetProviderAvailability RPC.
+	RunnerServiceGetProviderAvailabilityProcedure = "/lazybox.bench.v1.RunnerService/GetProviderAvailability"
+	// RunnerServiceSaveAcpAgentProcedure is the fully-qualified name of the RunnerService's
+	// SaveAcpAgent RPC.
+	RunnerServiceSaveAcpAgentProcedure = "/lazybox.bench.v1.RunnerService/SaveAcpAgent"
+	// RunnerServiceRemoveAcpAgentProcedure is the fully-qualified name of the RunnerService's
+	// RemoveAcpAgent RPC.
+	RunnerServiceRemoveAcpAgentProcedure = "/lazybox.bench.v1.RunnerService/RemoveAcpAgent"
 	// RunnerServiceGetTelemetryProcedure is the fully-qualified name of the RunnerService's
 	// GetTelemetry RPC.
 	RunnerServiceGetTelemetryProcedure = "/lazybox.bench.v1.RunnerService/GetTelemetry"
@@ -74,6 +101,9 @@ const (
 	// RunnerServiceRefreshSubscriptionProcedure is the fully-qualified name of the RunnerService's
 	// RefreshSubscription RPC.
 	RunnerServiceRefreshSubscriptionProcedure = "/lazybox.bench.v1.RunnerService/RefreshSubscription"
+	// RunnerServiceRemoveSubscriptionProcedure is the fully-qualified name of the RunnerService's
+	// RemoveSubscription RPC.
+	RunnerServiceRemoveSubscriptionProcedure = "/lazybox.bench.v1.RunnerService/RemoveSubscription"
 	// RunnerServiceGetGitHubConnectionProcedure is the fully-qualified name of the RunnerService's
 	// GetGitHubConnection RPC.
 	RunnerServiceGetGitHubConnectionProcedure = "/lazybox.bench.v1.RunnerService/GetGitHubConnection"
@@ -113,6 +143,17 @@ const (
 	// RunnerServiceListGitHubItemsProcedure is the fully-qualified name of the RunnerService's
 	// ListGitHubItems RPC.
 	RunnerServiceListGitHubItemsProcedure = "/lazybox.bench.v1.RunnerService/ListGitHubItems"
+	// RunnerServiceSearchItemsProcedure is the fully-qualified name of the RunnerService's SearchItems
+	// RPC.
+	RunnerServiceSearchItemsProcedure = "/lazybox.bench.v1.RunnerService/SearchItems"
+	// RunnerServiceGetItemProcedure is the fully-qualified name of the RunnerService's GetItem RPC.
+	RunnerServiceGetItemProcedure = "/lazybox.bench.v1.RunnerService/GetItem"
+	// RunnerServiceResolveItemUrlProcedure is the fully-qualified name of the RunnerService's
+	// ResolveItemUrl RPC.
+	RunnerServiceResolveItemUrlProcedure = "/lazybox.bench.v1.RunnerService/ResolveItemUrl"
+	// RunnerServiceFindItemWorkspacesProcedure is the fully-qualified name of the RunnerService's
+	// FindItemWorkspaces RPC.
+	RunnerServiceFindItemWorkspacesProcedure = "/lazybox.bench.v1.RunnerService/FindItemWorkspaces"
 	// RunnerServiceAddLocalRepositoryProcedure is the fully-qualified name of the RunnerService's
 	// AddLocalRepository RPC.
 	RunnerServiceAddLocalRepositoryProcedure = "/lazybox.bench.v1.RunnerService/AddLocalRepository"
@@ -122,6 +163,18 @@ const (
 	// RunnerServiceRemoveRepositoryProcedure is the fully-qualified name of the RunnerService's
 	// RemoveRepository RPC.
 	RunnerServiceRemoveRepositoryProcedure = "/lazybox.bench.v1.RunnerService/RemoveRepository"
+	// RunnerServiceListRepositoryHomesProcedure is the fully-qualified name of the RunnerService's
+	// ListRepositoryHomes RPC.
+	RunnerServiceListRepositoryHomesProcedure = "/lazybox.bench.v1.RunnerService/ListRepositoryHomes"
+	// RunnerServiceSetRepositoryHomeProcedure is the fully-qualified name of the RunnerService's
+	// SetRepositoryHome RPC.
+	RunnerServiceSetRepositoryHomeProcedure = "/lazybox.bench.v1.RunnerService/SetRepositoryHome"
+	// RunnerServiceOpenRepositoryHomeProcedure is the fully-qualified name of the RunnerService's
+	// OpenRepositoryHome RPC.
+	RunnerServiceOpenRepositoryHomeProcedure = "/lazybox.bench.v1.RunnerService/OpenRepositoryHome"
+	// RunnerServiceUpdateRepositoryHomeProcedure is the fully-qualified name of the RunnerService's
+	// UpdateRepositoryHome RPC.
+	RunnerServiceUpdateRepositoryHomeProcedure = "/lazybox.bench.v1.RunnerService/UpdateRepositoryHome"
 	// RunnerServiceCreateCollectionProcedure is the fully-qualified name of the RunnerService's
 	// CreateCollection RPC.
 	RunnerServiceCreateCollectionProcedure = "/lazybox.bench.v1.RunnerService/CreateCollection"
@@ -134,12 +187,21 @@ const (
 	// RunnerServiceListCollectionsProcedure is the fully-qualified name of the RunnerService's
 	// ListCollections RPC.
 	RunnerServiceListCollectionsProcedure = "/lazybox.bench.v1.RunnerService/ListCollections"
+	// RunnerServiceArrangeWorkspacesProcedure is the fully-qualified name of the RunnerService's
+	// ArrangeWorkspaces RPC.
+	RunnerServiceArrangeWorkspacesProcedure = "/lazybox.bench.v1.RunnerService/ArrangeWorkspaces"
 	// RunnerServiceArchiveCollectionProcedure is the fully-qualified name of the RunnerService's
 	// ArchiveCollection RPC.
 	RunnerServiceArchiveCollectionProcedure = "/lazybox.bench.v1.RunnerService/ArchiveCollection"
 	// RunnerServiceReconcileCollectionProcedure is the fully-qualified name of the RunnerService's
 	// ReconcileCollection RPC.
 	RunnerServiceReconcileCollectionProcedure = "/lazybox.bench.v1.RunnerService/ReconcileCollection"
+	// RunnerServiceGetOwnershipProcedure is the fully-qualified name of the RunnerService's
+	// GetOwnership RPC.
+	RunnerServiceGetOwnershipProcedure = "/lazybox.bench.v1.RunnerService/GetOwnership"
+	// RunnerServiceResolveOwnershipProcedure is the fully-qualified name of the RunnerService's
+	// ResolveOwnership RPC.
+	RunnerServiceResolveOwnershipProcedure = "/lazybox.bench.v1.RunnerService/ResolveOwnership"
 	// RunnerServiceOpenSessionProcedure is the fully-qualified name of the RunnerService's OpenSession
 	// RPC.
 	RunnerServiceOpenSessionProcedure = "/lazybox.bench.v1.RunnerService/OpenSession"
@@ -149,6 +211,12 @@ const (
 	// RunnerServiceRenameConversationProcedure is the fully-qualified name of the RunnerService's
 	// RenameConversation RPC.
 	RunnerServiceRenameConversationProcedure = "/lazybox.bench.v1.RunnerService/RenameConversation"
+	// RunnerServicePinConversationProcedure is the fully-qualified name of the RunnerService's
+	// PinConversation RPC.
+	RunnerServicePinConversationProcedure = "/lazybox.bench.v1.RunnerService/PinConversation"
+	// RunnerServiceArchiveConversationProcedure is the fully-qualified name of the RunnerService's
+	// ArchiveConversation RPC.
+	RunnerServiceArchiveConversationProcedure = "/lazybox.bench.v1.RunnerService/ArchiveConversation"
 	// RunnerServiceListWorkspaceChangesProcedure is the fully-qualified name of the RunnerService's
 	// ListWorkspaceChanges RPC.
 	RunnerServiceListWorkspaceChangesProcedure = "/lazybox.bench.v1.RunnerService/ListWorkspaceChanges"
@@ -161,17 +229,41 @@ const (
 	// RunnerServiceSaveWorkspaceFileProcedure is the fully-qualified name of the RunnerService's
 	// SaveWorkspaceFile RPC.
 	RunnerServiceSaveWorkspaceFileProcedure = "/lazybox.bench.v1.RunnerService/SaveWorkspaceFile"
+	// RunnerServiceSearchWorkspaceFilesProcedure is the fully-qualified name of the RunnerService's
+	// SearchWorkspaceFiles RPC.
+	RunnerServiceSearchWorkspaceFilesProcedure = "/lazybox.bench.v1.RunnerService/SearchWorkspaceFiles"
+	// RunnerServiceResolveWorkspacePathProcedure is the fully-qualified name of the RunnerService's
+	// ResolveWorkspacePath RPC.
+	RunnerServiceResolveWorkspacePathProcedure = "/lazybox.bench.v1.RunnerService/ResolveWorkspacePath"
 	// RunnerServiceListHistoryProcedure is the fully-qualified name of the RunnerService's ListHistory
 	// RPC.
 	RunnerServiceListHistoryProcedure = "/lazybox.bench.v1.RunnerService/ListHistory"
 	// RunnerServiceResumeSessionProcedure is the fully-qualified name of the RunnerService's
 	// ResumeSession RPC.
 	RunnerServiceResumeSessionProcedure = "/lazybox.bench.v1.RunnerService/ResumeSession"
+	// RunnerServiceRestartWithPermissionProcedure is the fully-qualified name of the RunnerService's
+	// RestartWithPermission RPC.
+	RunnerServiceRestartWithPermissionProcedure = "/lazybox.bench.v1.RunnerService/RestartWithPermission"
+	// RunnerServiceRestartWithModelProcedure is the fully-qualified name of the RunnerService's
+	// RestartWithModel RPC.
+	RunnerServiceRestartWithModelProcedure = "/lazybox.bench.v1.RunnerService/RestartWithModel"
+	// RunnerServiceGiveBrowserProcedure is the fully-qualified name of the RunnerService's GiveBrowser
+	// RPC.
+	RunnerServiceGiveBrowserProcedure = "/lazybox.bench.v1.RunnerService/GiveBrowser"
+	// RunnerServiceSwitchSubscriptionProcedure is the fully-qualified name of the RunnerService's
+	// SwitchSubscription RPC.
+	RunnerServiceSwitchSubscriptionProcedure = "/lazybox.bench.v1.RunnerService/SwitchSubscription"
+	// RunnerServiceSetSessionRotationProcedure is the fully-qualified name of the RunnerService's
+	// SetSessionRotation RPC.
+	RunnerServiceSetSessionRotationProcedure = "/lazybox.bench.v1.RunnerService/SetSessionRotation"
 	// RunnerServiceGetSessionProcedure is the fully-qualified name of the RunnerService's GetSession
 	// RPC.
 	RunnerServiceGetSessionProcedure = "/lazybox.bench.v1.RunnerService/GetSession"
 	// RunnerServiceApplyProcedure is the fully-qualified name of the RunnerService's Apply RPC.
 	RunnerServiceApplyProcedure = "/lazybox.bench.v1.RunnerService/Apply"
+	// RunnerServiceReadAttachmentProcedure is the fully-qualified name of the RunnerService's
+	// ReadAttachment RPC.
+	RunnerServiceReadAttachmentProcedure = "/lazybox.bench.v1.RunnerService/ReadAttachment"
 	// RunnerServiceCloseSessionProcedure is the fully-qualified name of the RunnerService's
 	// CloseSession RPC.
 	RunnerServiceCloseSessionProcedure = "/lazybox.bench.v1.RunnerService/CloseSession"
@@ -193,6 +285,9 @@ const (
 	// RunnerServiceWatchEventsProcedure is the fully-qualified name of the RunnerService's WatchEvents
 	// RPC.
 	RunnerServiceWatchEventsProcedure = "/lazybox.bench.v1.RunnerService/WatchEvents"
+	// RunnerServiceReadSessionTailProcedure is the fully-qualified name of the RunnerService's
+	// ReadSessionTail RPC.
+	RunnerServiceReadSessionTailProcedure = "/lazybox.bench.v1.RunnerService/ReadSessionTail"
 	// RunnerServiceStartCommandProcedure is the fully-qualified name of the RunnerService's
 	// StartCommand RPC.
 	RunnerServiceStartCommandProcedure = "/lazybox.bench.v1.RunnerService/StartCommand"
@@ -207,6 +302,9 @@ const (
 	// RunnerServiceListCommandsProcedure is the fully-qualified name of the RunnerService's
 	// ListCommands RPC.
 	RunnerServiceListCommandsProcedure = "/lazybox.bench.v1.RunnerService/ListCommands"
+	// RunnerServiceClaimCommandShareProcedure is the fully-qualified name of the RunnerService's
+	// ClaimCommandShare RPC.
+	RunnerServiceClaimCommandShareProcedure = "/lazybox.bench.v1.RunnerService/ClaimCommandShare"
 	// RunnerServiceReadCommandProcedure is the fully-qualified name of the RunnerService's ReadCommand
 	// RPC.
 	RunnerServiceReadCommandProcedure = "/lazybox.bench.v1.RunnerService/ReadCommand"
@@ -216,9 +314,356 @@ const (
 	// RunnerServiceCancelCommandProcedure is the fully-qualified name of the RunnerService's
 	// CancelCommand RPC.
 	RunnerServiceCancelCommandProcedure = "/lazybox.bench.v1.RunnerService/CancelCommand"
+	// RunnerServiceBackgroundCommandProcedure is the fully-qualified name of the RunnerService's
+	// BackgroundCommand RPC.
+	RunnerServiceBackgroundCommandProcedure = "/lazybox.bench.v1.RunnerService/BackgroundCommand"
+	// RunnerServiceFollowPipeProcedure is the fully-qualified name of the RunnerService's FollowPipe
+	// RPC.
+	RunnerServiceFollowPipeProcedure = "/lazybox.bench.v1.RunnerService/FollowPipe"
 	// RunnerServiceWatchOutputProcedure is the fully-qualified name of the RunnerService's WatchOutput
 	// RPC.
 	RunnerServiceWatchOutputProcedure = "/lazybox.bench.v1.RunnerService/WatchOutput"
+	// RunnerServiceOpenTerminalProcedure is the fully-qualified name of the RunnerService's
+	// OpenTerminal RPC.
+	RunnerServiceOpenTerminalProcedure = "/lazybox.bench.v1.RunnerService/OpenTerminal"
+	// RunnerServiceListTerminalsProcedure is the fully-qualified name of the RunnerService's
+	// ListTerminals RPC.
+	RunnerServiceListTerminalsProcedure = "/lazybox.bench.v1.RunnerService/ListTerminals"
+	// RunnerServiceWatchTerminalProcedure is the fully-qualified name of the RunnerService's
+	// WatchTerminal RPC.
+	RunnerServiceWatchTerminalProcedure = "/lazybox.bench.v1.RunnerService/WatchTerminal"
+	// RunnerServiceWriteTerminalProcedure is the fully-qualified name of the RunnerService's
+	// WriteTerminal RPC.
+	RunnerServiceWriteTerminalProcedure = "/lazybox.bench.v1.RunnerService/WriteTerminal"
+	// RunnerServiceResizeTerminalProcedure is the fully-qualified name of the RunnerService's
+	// ResizeTerminal RPC.
+	RunnerServiceResizeTerminalProcedure = "/lazybox.bench.v1.RunnerService/ResizeTerminal"
+	// RunnerServiceCloseTerminalProcedure is the fully-qualified name of the RunnerService's
+	// CloseTerminal RPC.
+	RunnerServiceCloseTerminalProcedure = "/lazybox.bench.v1.RunnerService/CloseTerminal"
+	// RunnerServiceRestartRunnerProcedure is the fully-qualified name of the RunnerService's
+	// RestartRunner RPC.
+	RunnerServiceRestartRunnerProcedure = "/lazybox.bench.v1.RunnerService/RestartRunner"
+	// RunnerServiceCommitWorkspaceChangesProcedure is the fully-qualified name of the RunnerService's
+	// CommitWorkspaceChanges RPC.
+	RunnerServiceCommitWorkspaceChangesProcedure = "/lazybox.bench.v1.RunnerService/CommitWorkspaceChanges"
+	// RunnerServicePushWorkspaceBranchProcedure is the fully-qualified name of the RunnerService's
+	// PushWorkspaceBranch RPC.
+	RunnerServicePushWorkspaceBranchProcedure = "/lazybox.bench.v1.RunnerService/PushWorkspaceBranch"
+	// RunnerServiceCreatePullRequestProcedure is the fully-qualified name of the RunnerService's
+	// CreatePullRequest RPC.
+	RunnerServiceCreatePullRequestProcedure = "/lazybox.bench.v1.RunnerService/CreatePullRequest"
+	// RunnerServiceGetPullRequestProcedure is the fully-qualified name of the RunnerService's
+	// GetPullRequest RPC.
+	RunnerServiceGetPullRequestProcedure = "/lazybox.bench.v1.RunnerService/GetPullRequest"
+	// RunnerServiceMergePullRequestProcedure is the fully-qualified name of the RunnerService's
+	// MergePullRequest RPC.
+	RunnerServiceMergePullRequestProcedure = "/lazybox.bench.v1.RunnerService/MergePullRequest"
+	// RunnerServiceListWorkspaceGitSummariesProcedure is the fully-qualified name of the
+	// RunnerService's ListWorkspaceGitSummaries RPC.
+	RunnerServiceListWorkspaceGitSummariesProcedure = "/lazybox.bench.v1.RunnerService/ListWorkspaceGitSummaries"
+	// RunnerServiceListLinksProcedure is the fully-qualified name of the RunnerService's ListLinks RPC.
+	RunnerServiceListLinksProcedure = "/lazybox.bench.v1.RunnerService/ListLinks"
+	// RunnerServiceLinkItemProcedure is the fully-qualified name of the RunnerService's LinkItem RPC.
+	RunnerServiceLinkItemProcedure = "/lazybox.bench.v1.RunnerService/LinkItem"
+	// RunnerServiceUnlinkItemProcedure is the fully-qualified name of the RunnerService's UnlinkItem
+	// RPC.
+	RunnerServiceUnlinkItemProcedure = "/lazybox.bench.v1.RunnerService/UnlinkItem"
+	// RunnerServiceSendPullRequestFailuresProcedure is the fully-qualified name of the RunnerService's
+	// SendPullRequestFailures RPC.
+	RunnerServiceSendPullRequestFailuresProcedure = "/lazybox.bench.v1.RunnerService/SendPullRequestFailures"
+	// RunnerServiceImportPullRequestReviewProcedure is the fully-qualified name of the RunnerService's
+	// ImportPullRequestReview RPC.
+	RunnerServiceImportPullRequestReviewProcedure = "/lazybox.bench.v1.RunnerService/ImportPullRequestReview"
+	// RunnerServiceListReviewCommentsProcedure is the fully-qualified name of the RunnerService's
+	// ListReviewComments RPC.
+	RunnerServiceListReviewCommentsProcedure = "/lazybox.bench.v1.RunnerService/ListReviewComments"
+	// RunnerServiceAddReviewCommentProcedure is the fully-qualified name of the RunnerService's
+	// AddReviewComment RPC.
+	RunnerServiceAddReviewCommentProcedure = "/lazybox.bench.v1.RunnerService/AddReviewComment"
+	// RunnerServiceEditReviewCommentProcedure is the fully-qualified name of the RunnerService's
+	// EditReviewComment RPC.
+	RunnerServiceEditReviewCommentProcedure = "/lazybox.bench.v1.RunnerService/EditReviewComment"
+	// RunnerServiceDeleteReviewCommentProcedure is the fully-qualified name of the RunnerService's
+	// DeleteReviewComment RPC.
+	RunnerServiceDeleteReviewCommentProcedure = "/lazybox.bench.v1.RunnerService/DeleteReviewComment"
+	// RunnerServiceSetReviewDispositionProcedure is the fully-qualified name of the RunnerService's
+	// SetReviewDisposition RPC.
+	RunnerServiceSetReviewDispositionProcedure = "/lazybox.bench.v1.RunnerService/SetReviewDisposition"
+	// RunnerServiceSetReviewAutoResolveProcedure is the fully-qualified name of the RunnerService's
+	// SetReviewAutoResolve RPC.
+	RunnerServiceSetReviewAutoResolveProcedure = "/lazybox.bench.v1.RunnerService/SetReviewAutoResolve"
+	// RunnerServiceStartReviewProcedure is the fully-qualified name of the RunnerService's StartReview
+	// RPC.
+	RunnerServiceStartReviewProcedure = "/lazybox.bench.v1.RunnerService/StartReview"
+	// RunnerServiceAddReviewFindingProcedure is the fully-qualified name of the RunnerService's
+	// AddReviewFinding RPC.
+	RunnerServiceAddReviewFindingProcedure = "/lazybox.bench.v1.RunnerService/AddReviewFinding"
+	// RunnerServiceListReviewFindingsProcedure is the fully-qualified name of the RunnerService's
+	// ListReviewFindings RPC.
+	RunnerServiceListReviewFindingsProcedure = "/lazybox.bench.v1.RunnerService/ListReviewFindings"
+	// RunnerServiceSetReviewFindingStateProcedure is the fully-qualified name of the RunnerService's
+	// SetReviewFindingState RPC.
+	RunnerServiceSetReviewFindingStateProcedure = "/lazybox.bench.v1.RunnerService/SetReviewFindingState"
+	// RunnerServiceUpdateReviewRunProcedure is the fully-qualified name of the RunnerService's
+	// UpdateReviewRun RPC.
+	RunnerServiceUpdateReviewRunProcedure = "/lazybox.bench.v1.RunnerService/UpdateReviewRun"
+	// RunnerServiceCancelReviewProcedure is the fully-qualified name of the RunnerService's
+	// CancelReview RPC.
+	RunnerServiceCancelReviewProcedure = "/lazybox.bench.v1.RunnerService/CancelReview"
+	// RunnerServiceAskAgentProcedure is the fully-qualified name of the RunnerService's AskAgent RPC.
+	RunnerServiceAskAgentProcedure = "/lazybox.bench.v1.RunnerService/AskAgent"
+	// RunnerServiceWaitAgentAskProcedure is the fully-qualified name of the RunnerService's
+	// WaitAgentAsk RPC.
+	RunnerServiceWaitAgentAskProcedure = "/lazybox.bench.v1.RunnerService/WaitAgentAsk"
+	// RunnerServiceListProcessesProcedure is the fully-qualified name of the RunnerService's
+	// ListProcesses RPC.
+	RunnerServiceListProcessesProcedure = "/lazybox.bench.v1.RunnerService/ListProcesses"
+	// RunnerServiceStopProcessProcedure is the fully-qualified name of the RunnerService's StopProcess
+	// RPC.
+	RunnerServiceStopProcessProcedure = "/lazybox.bench.v1.RunnerService/StopProcess"
+	// RunnerServiceCleanUpOrphanProcessesProcedure is the fully-qualified name of the RunnerService's
+	// CleanUpOrphanProcesses RPC.
+	RunnerServiceCleanUpOrphanProcessesProcedure = "/lazybox.bench.v1.RunnerService/CleanUpOrphanProcesses"
+	// RunnerServiceGetOrchestrationProcessProcedure is the fully-qualified name of the RunnerService's
+	// GetOrchestrationProcess RPC.
+	RunnerServiceGetOrchestrationProcessProcedure = "/lazybox.bench.v1.RunnerService/GetOrchestrationProcess"
+	// RunnerServiceExplainOrchestrationProcessProcedure is the fully-qualified name of the
+	// RunnerService's ExplainOrchestrationProcess RPC.
+	RunnerServiceExplainOrchestrationProcessProcedure = "/lazybox.bench.v1.RunnerService/ExplainOrchestrationProcess"
+	// RunnerServiceListTurnCheckpointsProcedure is the fully-qualified name of the RunnerService's
+	// ListTurnCheckpoints RPC.
+	RunnerServiceListTurnCheckpointsProcedure = "/lazybox.bench.v1.RunnerService/ListTurnCheckpoints"
+	// RunnerServiceListTurnChangesProcedure is the fully-qualified name of the RunnerService's
+	// ListTurnChanges RPC.
+	RunnerServiceListTurnChangesProcedure = "/lazybox.bench.v1.RunnerService/ListTurnChanges"
+	// RunnerServiceReadTurnDiffProcedure is the fully-qualified name of the RunnerService's
+	// ReadTurnDiff RPC.
+	RunnerServiceReadTurnDiffProcedure = "/lazybox.bench.v1.RunnerService/ReadTurnDiff"
+	// RunnerServicePreviewRevertCodeProcedure is the fully-qualified name of the RunnerService's
+	// PreviewRevertCode RPC.
+	RunnerServicePreviewRevertCodeProcedure = "/lazybox.bench.v1.RunnerService/PreviewRevertCode"
+	// RunnerServiceRevertCodeProcedure is the fully-qualified name of the RunnerService's RevertCode
+	// RPC.
+	RunnerServiceRevertCodeProcedure = "/lazybox.bench.v1.RunnerService/RevertCode"
+	// RunnerServiceUndoRevertCodeProcedure is the fully-qualified name of the RunnerService's
+	// UndoRevertCode RPC.
+	RunnerServiceUndoRevertCodeProcedure = "/lazybox.bench.v1.RunnerService/UndoRevertCode"
+	// RunnerServiceGetWorkspaceRuntimeProcedure is the fully-qualified name of the RunnerService's
+	// GetWorkspaceRuntime RPC.
+	RunnerServiceGetWorkspaceRuntimeProcedure = "/lazybox.bench.v1.RunnerService/GetWorkspaceRuntime"
+	// RunnerServiceApproveWorkspaceScriptsProcedure is the fully-qualified name of the RunnerService's
+	// ApproveWorkspaceScripts RPC.
+	RunnerServiceApproveWorkspaceScriptsProcedure = "/lazybox.bench.v1.RunnerService/ApproveWorkspaceScripts"
+	// RunnerServiceStartWorkspaceActionProcedure is the fully-qualified name of the RunnerService's
+	// StartWorkspaceAction RPC.
+	RunnerServiceStartWorkspaceActionProcedure = "/lazybox.bench.v1.RunnerService/StartWorkspaceAction"
+	// RunnerServiceStopWorkspaceActionProcedure is the fully-qualified name of the RunnerService's
+	// StopWorkspaceAction RPC.
+	RunnerServiceStopWorkspaceActionProcedure = "/lazybox.bench.v1.RunnerService/StopWorkspaceAction"
+	// RunnerServiceRunWorkspaceSetupProcedure is the fully-qualified name of the RunnerService's
+	// RunWorkspaceSetup RPC.
+	RunnerServiceRunWorkspaceSetupProcedure = "/lazybox.bench.v1.RunnerService/RunWorkspaceSetup"
+	// RunnerServiceGetWorkspaceRuntimeSettingsProcedure is the fully-qualified name of the
+	// RunnerService's GetWorkspaceRuntimeSettings RPC.
+	RunnerServiceGetWorkspaceRuntimeSettingsProcedure = "/lazybox.bench.v1.RunnerService/GetWorkspaceRuntimeSettings"
+	// RunnerServiceSaveWorkspaceRuntimeSettingsProcedure is the fully-qualified name of the
+	// RunnerService's SaveWorkspaceRuntimeSettings RPC.
+	RunnerServiceSaveWorkspaceRuntimeSettingsProcedure = "/lazybox.bench.v1.RunnerService/SaveWorkspaceRuntimeSettings"
+	// RunnerServiceGetRemoteAccessProcedure is the fully-qualified name of the RunnerService's
+	// GetRemoteAccess RPC.
+	RunnerServiceGetRemoteAccessProcedure = "/lazybox.bench.v1.RunnerService/GetRemoteAccess"
+	// RunnerServiceSetRemoteAccessProcedure is the fully-qualified name of the RunnerService's
+	// SetRemoteAccess RPC.
+	RunnerServiceSetRemoteAccessProcedure = "/lazybox.bench.v1.RunnerService/SetRemoteAccess"
+	// RunnerServiceBeginDevicePairingProcedure is the fully-qualified name of the RunnerService's
+	// BeginDevicePairing RPC.
+	RunnerServiceBeginDevicePairingProcedure = "/lazybox.bench.v1.RunnerService/BeginDevicePairing"
+	// RunnerServiceGetDevicePairingProcedure is the fully-qualified name of the RunnerService's
+	// GetDevicePairing RPC.
+	RunnerServiceGetDevicePairingProcedure = "/lazybox.bench.v1.RunnerService/GetDevicePairing"
+	// RunnerServiceCancelDevicePairingProcedure is the fully-qualified name of the RunnerService's
+	// CancelDevicePairing RPC.
+	RunnerServiceCancelDevicePairingProcedure = "/lazybox.bench.v1.RunnerService/CancelDevicePairing"
+	// RunnerServiceListDevicesProcedure is the fully-qualified name of the RunnerService's ListDevices
+	// RPC.
+	RunnerServiceListDevicesProcedure = "/lazybox.bench.v1.RunnerService/ListDevices"
+	// RunnerServiceRevokeDeviceProcedure is the fully-qualified name of the RunnerService's
+	// RevokeDevice RPC.
+	RunnerServiceRevokeDeviceProcedure = "/lazybox.bench.v1.RunnerService/RevokeDevice"
+	// RunnerServiceGetPushSettingsProcedure is the fully-qualified name of the RunnerService's
+	// GetPushSettings RPC.
+	RunnerServiceGetPushSettingsProcedure = "/lazybox.bench.v1.RunnerService/GetPushSettings"
+	// RunnerServiceSetPushSettingsProcedure is the fully-qualified name of the RunnerService's
+	// SetPushSettings RPC.
+	RunnerServiceSetPushSettingsProcedure = "/lazybox.bench.v1.RunnerService/SetPushSettings"
+	// RunnerServiceSendTestPushProcedure is the fully-qualified name of the RunnerService's
+	// SendTestPush RPC.
+	RunnerServiceSendTestPushProcedure = "/lazybox.bench.v1.RunnerService/SendTestPush"
+	// RunnerServiceListMissionsProcedure is the fully-qualified name of the RunnerService's
+	// ListMissions RPC.
+	RunnerServiceListMissionsProcedure = "/lazybox.bench.v1.RunnerService/ListMissions"
+	// RunnerServiceGetMissionProcedure is the fully-qualified name of the RunnerService's GetMission
+	// RPC.
+	RunnerServiceGetMissionProcedure = "/lazybox.bench.v1.RunnerService/GetMission"
+	// RunnerServiceCreateMissionProcedure is the fully-qualified name of the RunnerService's
+	// CreateMission RPC.
+	RunnerServiceCreateMissionProcedure = "/lazybox.bench.v1.RunnerService/CreateMission"
+	// RunnerServiceUpdateMissionProcedure is the fully-qualified name of the RunnerService's
+	// UpdateMission RPC.
+	RunnerServiceUpdateMissionProcedure = "/lazybox.bench.v1.RunnerService/UpdateMission"
+	// RunnerServiceListPromptHistoryProcedure is the fully-qualified name of the RunnerService's
+	// ListPromptHistory RPC.
+	RunnerServiceListPromptHistoryProcedure = "/lazybox.bench.v1.RunnerService/ListPromptHistory"
+	// RunnerServiceSpawnAgentProcedure is the fully-qualified name of the RunnerService's SpawnAgent
+	// RPC.
+	RunnerServiceSpawnAgentProcedure = "/lazybox.bench.v1.RunnerService/SpawnAgent"
+	// RunnerServiceListAgentLineageProcedure is the fully-qualified name of the RunnerService's
+	// ListAgentLineage RPC.
+	RunnerServiceListAgentLineageProcedure = "/lazybox.bench.v1.RunnerService/ListAgentLineage"
+	// RunnerServiceSendAgentMessageProcedure is the fully-qualified name of the RunnerService's
+	// SendAgentMessage RPC.
+	RunnerServiceSendAgentMessageProcedure = "/lazybox.bench.v1.RunnerService/SendAgentMessage"
+	// RunnerServiceWaitAgentsProcedure is the fully-qualified name of the RunnerService's WaitAgents
+	// RPC.
+	RunnerServiceWaitAgentsProcedure = "/lazybox.bench.v1.RunnerService/WaitAgents"
+	// RunnerServiceStopChildAgentProcedure is the fully-qualified name of the RunnerService's
+	// StopChildAgent RPC.
+	RunnerServiceStopChildAgentProcedure = "/lazybox.bench.v1.RunnerService/StopChildAgent"
+	// RunnerServiceReportAgentTaskProcedure is the fully-qualified name of the RunnerService's
+	// ReportAgentTask RPC.
+	RunnerServiceReportAgentTaskProcedure = "/lazybox.bench.v1.RunnerService/ReportAgentTask"
+	// RunnerServiceProposePlanProcedure is the fully-qualified name of the RunnerService's ProposePlan
+	// RPC.
+	RunnerServiceProposePlanProcedure = "/lazybox.bench.v1.RunnerService/ProposePlan"
+	// RunnerServiceClaimLeaseProcedure is the fully-qualified name of the RunnerService's ClaimLease
+	// RPC.
+	RunnerServiceClaimLeaseProcedure = "/lazybox.bench.v1.RunnerService/ClaimLease"
+	// RunnerServiceReleaseLeaseProcedure is the fully-qualified name of the RunnerService's
+	// ReleaseLease RPC.
+	RunnerServiceReleaseLeaseProcedure = "/lazybox.bench.v1.RunnerService/ReleaseLease"
+	// RunnerServiceListLeasesProcedure is the fully-qualified name of the RunnerService's ListLeases
+	// RPC.
+	RunnerServiceListLeasesProcedure = "/lazybox.bench.v1.RunnerService/ListLeases"
+	// RunnerServiceListArtifactsProcedure is the fully-qualified name of the RunnerService's
+	// ListArtifacts RPC.
+	RunnerServiceListArtifactsProcedure = "/lazybox.bench.v1.RunnerService/ListArtifacts"
+	// RunnerServiceGetArtifactProcedure is the fully-qualified name of the RunnerService's GetArtifact
+	// RPC.
+	RunnerServiceGetArtifactProcedure = "/lazybox.bench.v1.RunnerService/GetArtifact"
+	// RunnerServicePutArtifactProcedure is the fully-qualified name of the RunnerService's PutArtifact
+	// RPC.
+	RunnerServicePutArtifactProcedure = "/lazybox.bench.v1.RunnerService/PutArtifact"
+	// RunnerServiceTrackArtifactFileProcedure is the fully-qualified name of the RunnerService's
+	// TrackArtifactFile RPC.
+	RunnerServiceTrackArtifactFileProcedure = "/lazybox.bench.v1.RunnerService/TrackArtifactFile"
+	// RunnerServiceUpdateArtifactProcedure is the fully-qualified name of the RunnerService's
+	// UpdateArtifact RPC.
+	RunnerServiceUpdateArtifactProcedure = "/lazybox.bench.v1.RunnerService/UpdateArtifact"
+	// RunnerServiceDeleteArtifactProcedure is the fully-qualified name of the RunnerService's
+	// DeleteArtifact RPC.
+	RunnerServiceDeleteArtifactProcedure = "/lazybox.bench.v1.RunnerService/DeleteArtifact"
+	// RunnerServiceRetireArtifactProcedure is the fully-qualified name of the RunnerService's
+	// RetireArtifact RPC.
+	RunnerServiceRetireArtifactProcedure = "/lazybox.bench.v1.RunnerService/RetireArtifact"
+	// RunnerServiceSaveArtifactToRepositoryProcedure is the fully-qualified name of the RunnerService's
+	// SaveArtifactToRepository RPC.
+	RunnerServiceSaveArtifactToRepositoryProcedure = "/lazybox.bench.v1.RunnerService/SaveArtifactToRepository"
+	// RunnerServiceCreateArtifactIssueProcedure is the fully-qualified name of the RunnerService's
+	// CreateArtifactIssue RPC.
+	RunnerServiceCreateArtifactIssueProcedure = "/lazybox.bench.v1.RunnerService/CreateArtifactIssue"
+	// RunnerServiceGetUserActionsProcedure is the fully-qualified name of the RunnerService's
+	// GetUserActions RPC.
+	RunnerServiceGetUserActionsProcedure = "/lazybox.bench.v1.RunnerService/GetUserActions"
+	// RunnerServiceInitUserActionsProcedure is the fully-qualified name of the RunnerService's
+	// InitUserActions RPC.
+	RunnerServiceInitUserActionsProcedure = "/lazybox.bench.v1.RunnerService/InitUserActions"
+	// RunnerServiceListHookRunsProcedure is the fully-qualified name of the RunnerService's
+	// ListHookRuns RPC.
+	RunnerServiceListHookRunsProcedure = "/lazybox.bench.v1.RunnerService/ListHookRuns"
+	// RunnerServiceTestHookProcedure is the fully-qualified name of the RunnerService's TestHook RPC.
+	RunnerServiceTestHookProcedure = "/lazybox.bench.v1.RunnerService/TestHook"
+	// RunnerServicePostUiRequestProcedure is the fully-qualified name of the RunnerService's
+	// PostUiRequest RPC.
+	RunnerServicePostUiRequestProcedure = "/lazybox.bench.v1.RunnerService/PostUiRequest"
+	// RunnerServiceWaitUiRequestProcedure is the fully-qualified name of the RunnerService's
+	// WaitUiRequest RPC.
+	RunnerServiceWaitUiRequestProcedure = "/lazybox.bench.v1.RunnerService/WaitUiRequest"
+	// RunnerServiceWatchUiRequestsProcedure is the fully-qualified name of the RunnerService's
+	// WatchUiRequests RPC.
+	RunnerServiceWatchUiRequestsProcedure = "/lazybox.bench.v1.RunnerService/WatchUiRequests"
+	// RunnerServiceCompleteUiRequestProcedure is the fully-qualified name of the RunnerService's
+	// CompleteUiRequest RPC.
+	RunnerServiceCompleteUiRequestProcedure = "/lazybox.bench.v1.RunnerService/CompleteUiRequest"
+	// RunnerServiceGetConfigFilesProcedure is the fully-qualified name of the RunnerService's
+	// GetConfigFiles RPC.
+	RunnerServiceGetConfigFilesProcedure = "/lazybox.bench.v1.RunnerService/GetConfigFiles"
+	// RunnerServiceUpdateConfigFileProcedure is the fully-qualified name of the RunnerService's
+	// UpdateConfigFile RPC.
+	RunnerServiceUpdateConfigFileProcedure = "/lazybox.bench.v1.RunnerService/UpdateConfigFile"
+	// RunnerServiceListExtensionsProcedure is the fully-qualified name of the RunnerService's
+	// ListExtensions RPC.
+	RunnerServiceListExtensionsProcedure = "/lazybox.bench.v1.RunnerService/ListExtensions"
+	// RunnerServiceApproveExtensionProcedure is the fully-qualified name of the RunnerService's
+	// ApproveExtension RPC.
+	RunnerServiceApproveExtensionProcedure = "/lazybox.bench.v1.RunnerService/ApproveExtension"
+	// RunnerServiceSetExtensionEnabledProcedure is the fully-qualified name of the RunnerService's
+	// SetExtensionEnabled RPC.
+	RunnerServiceSetExtensionEnabledProcedure = "/lazybox.bench.v1.RunnerService/SetExtensionEnabled"
+	// RunnerServiceRemoveExtensionProcedure is the fully-qualified name of the RunnerService's
+	// RemoveExtension RPC.
+	RunnerServiceRemoveExtensionProcedure = "/lazybox.bench.v1.RunnerService/RemoveExtension"
+	// RunnerServiceInstallExampleExtensionProcedure is the fully-qualified name of the RunnerService's
+	// InstallExampleExtension RPC.
+	RunnerServiceInstallExampleExtensionProcedure = "/lazybox.bench.v1.RunnerService/InstallExampleExtension"
+	// RunnerServiceOpenExtensionPanelProcedure is the fully-qualified name of the RunnerService's
+	// OpenExtensionPanel RPC.
+	RunnerServiceOpenExtensionPanelProcedure = "/lazybox.bench.v1.RunnerService/OpenExtensionPanel"
+	// RunnerServiceListWorkspaceRepositoriesProcedure is the fully-qualified name of the
+	// RunnerService's ListWorkspaceRepositories RPC.
+	RunnerServiceListWorkspaceRepositoriesProcedure = "/lazybox.bench.v1.RunnerService/ListWorkspaceRepositories"
+	// RunnerServiceRequestRepositoryProcedure is the fully-qualified name of the RunnerService's
+	// RequestRepository RPC.
+	RunnerServiceRequestRepositoryProcedure = "/lazybox.bench.v1.RunnerService/RequestRepository"
+	// RunnerServiceWaitRepositoryRequestProcedure is the fully-qualified name of the RunnerService's
+	// WaitRepositoryRequest RPC.
+	RunnerServiceWaitRepositoryRequestProcedure = "/lazybox.bench.v1.RunnerService/WaitRepositoryRequest"
+	// RunnerServiceDeclineRepositoryRequestProcedure is the fully-qualified name of the RunnerService's
+	// DeclineRepositoryRequest RPC.
+	RunnerServiceDeclineRepositoryRequestProcedure = "/lazybox.bench.v1.RunnerService/DeclineRepositoryRequest"
+	// RunnerServiceRequestConversationStartProcedure is the fully-qualified name of the RunnerService's
+	// RequestConversationStart RPC.
+	RunnerServiceRequestConversationStartProcedure = "/lazybox.bench.v1.RunnerService/RequestConversationStart"
+	// RunnerServiceWaitConversationStartProcedure is the fully-qualified name of the RunnerService's
+	// WaitConversationStart RPC.
+	RunnerServiceWaitConversationStartProcedure = "/lazybox.bench.v1.RunnerService/WaitConversationStart"
+	// RunnerServiceAnswerConversationStartProcedure is the fully-qualified name of the RunnerService's
+	// AnswerConversationStart RPC.
+	RunnerServiceAnswerConversationStartProcedure = "/lazybox.bench.v1.RunnerService/AnswerConversationStart"
+	// RunnerServiceWatchBrowserProcedure is the fully-qualified name of the RunnerService's
+	// WatchBrowser RPC.
+	RunnerServiceWatchBrowserProcedure = "/lazybox.bench.v1.RunnerService/WatchBrowser"
+	// RunnerServiceControlBrowserProcedure is the fully-qualified name of the RunnerService's
+	// ControlBrowser RPC.
+	RunnerServiceControlBrowserProcedure = "/lazybox.bench.v1.RunnerService/ControlBrowser"
+	// RunnerServiceSendBrowserInputProcedure is the fully-qualified name of the RunnerService's
+	// SendBrowserInput RPC.
+	RunnerServiceSendBrowserInputProcedure = "/lazybox.bench.v1.RunnerService/SendBrowserInput"
+	// RunnerServiceDecideBrowserRequestProcedure is the fully-qualified name of the RunnerService's
+	// DecideBrowserRequest RPC.
+	RunnerServiceDecideBrowserRequestProcedure = "/lazybox.bench.v1.RunnerService/DecideBrowserRequest"
+	// RunnerServiceGetBrowserSettingsProcedure is the fully-qualified name of the RunnerService's
+	// GetBrowserSettings RPC.
+	RunnerServiceGetBrowserSettingsProcedure = "/lazybox.bench.v1.RunnerService/GetBrowserSettings"
+	// RunnerServiceSaveBrowserSettingsProcedure is the fully-qualified name of the RunnerService's
+	// SaveBrowserSettings RPC.
+	RunnerServiceSaveBrowserSettingsProcedure = "/lazybox.bench.v1.RunnerService/SaveBrowserSettings"
+	// RunnerServiceClearBrowserDataProcedure is the fully-qualified name of the RunnerService's
+	// ClearBrowserData RPC.
+	RunnerServiceClearBrowserDataProcedure = "/lazybox.bench.v1.RunnerService/ClearBrowserData"
+	// RunnerServiceInstallBrowserProcedure is the fully-qualified name of the RunnerService's
+	// InstallBrowser RPC.
+	RunnerServiceInstallBrowserProcedure = "/lazybox.bench.v1.RunnerService/InstallBrowser"
 )
 
 // RunnerServiceClient is a client for the lazybox.bench.v1.RunnerService service.
@@ -226,17 +671,57 @@ type RunnerServiceClient interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
 	GetRepositoryCatalog(context.Context, *connect.Request[gen.GetRepositoryCatalogRequest]) (*connect.Response[gen.RepositoryCatalog], error)
 	PrepareWorkspace(context.Context, *connect.Request[gen.PrepareWorkspaceRequest]) (*connect.ServerStreamForClient[gen.WorkspacePreparation], error)
+	// A repository's branches for New task's "Start from" choice, its default
+	// branch and the branch it last started from (WORKSPACES.md, "Start from").
+	ListRepositoryBranches(context.Context, *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error)
+	// The owner's only. Replaces Lazybox's copy of a GitHub repository whose
+	// history changed on GitHub since Lazybox copied it (a force-push with a
+	// new root, or a new repository that took its name) with a fresh copy of
+	// what GitHub has now. Without confirm it only says what that changes.
+	// Workspaces made from the old copy keep their worktrees on it.
+	RefreshRepositoryIdentity(context.Context, *connect.Request[gen.RefreshRepositoryIdentityRequest]) (*connect.Response[gen.RepositoryIdentityRefresh], error)
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
 	SetModelPrice(context.Context, *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error)
+	// Owner only. How Claude agents authenticate (CLAUDE_COMPLIANCE.md): whether
+	// an Anthropic API key is saved (never the key itself) and which cloud
+	// provider the Runner's environment selects.
+	GetClaudeAuth(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.ClaudeAuth], error)
+	// Owner only. Saves or forgets the Anthropic API key the claude-default
+	// account's agents run with.
+	SetClaudeApiKey(context.Context, *connect.Request[gen.SetClaudeApiKeyRequest]) (*connect.Response[gen.ClaudeAuth], error)
+	// Owner only. The user's themes folder for Settings → Appearance: each .json
+	// or .toml file parsed to JSON, read on every call so edits apply without a
+	// restart. The client validates each document against its token catalogue.
+	ListThemes(context.Context, *connect.Request[gen.ListThemesRequest]) (*connect.Response[gen.ThemeFolder], error)
+	// Owner only. Creates a theme file in that folder; never replaces an
+	// existing one.
+	CreateTheme(context.Context, *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error)
 	Info(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error)
+	// Owner only. Which agent providers this Runner can run and on which saved
+	// subscriptions: each provider's program (found, where, which version) and
+	// each subscription's state. Ask Lazybox picks its agent from it; the
+	// welcome shows it. Programs are probed once and again on refresh;
+	// subscription states are read on every call.
+	GetProviderAvailability(context.Context, *connect.Request[gen.ProviderAvailabilityRequest]) (*connect.Response[gen.ProviderAvailability], error)
+	// Owner only. Adds or changes an ACP agent the person runs (a custom one,
+	// or a built-in one's command), and answers with the availability report,
+	// probed again. Environment values stay on the Runner (ACP.md).
+	SaveAcpAgent(context.Context, *connect.Request[gen.SaveAcpAgentRequest]) (*connect.Response[gen.ProviderAvailability], error)
+	// Owner only. Removes a custom ACP agent, or restores a built-in one's
+	// command. Running conversations keep their agent.
+	RemoveAcpAgent(context.Context, *connect.Request[gen.RemoveAcpAgentRequest]) (*connect.Response[gen.ProviderAvailability], error)
 	GetTelemetry(context.Context, *connect.Request[gen.TelemetryRequest]) (*connect.Response[gen.TelemetryReport], error)
 	RenameCollection(context.Context, *connect.Request[gen.RenameCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddSubscription(context.Context, *connect.Request[gen.AddSubscriptionRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	GetSubscriptionEnrollment(context.Context, *connect.Request[gen.SubscriptionEnrollmentRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	CancelSubscriptionEnrollment(context.Context, *connect.Request[gen.SubscriptionEnrollmentRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	RefreshSubscription(context.Context, *connect.Request[gen.RefreshSubscriptionRequest]) (*connect.Response[gen.Profile], error)
+	// Owner only. Forgets a subscription saved in Lazybox: its registry entry and
+	// its private folder (an imported token among them). Refused while a running
+	// conversation uses it. The person's own CLI sign-ins are never touched.
+	RemoveSubscription(context.Context, *connect.Request[gen.RemoveSubscriptionRequest]) (*connect.Response[gen.InfoResponse], error)
 	GetGitHubConnection(context.Context, *connect.Request[gen.GetGitHubConnectionRequest]) (*connect.Response[gen.GitHubConnection], error)
 	ConfigureGitHubApp(context.Context, *connect.Request[gen.ConfigureGitHubAppRequest]) (*connect.Response[gen.GitHubConnection], error)
 	ConnectGitHubPersonalToken(context.Context, *connect.Request[gen.ConnectGitHubPersonalTokenRequest]) (*connect.Response[gen.GitHubConnection], error)
@@ -250,26 +735,96 @@ type RunnerServiceClient interface {
 	ListGitHubRepositories(context.Context, *connect.Request[gen.ListGitHubRepositoriesRequest]) (*connect.Response[gen.ListGitHubRepositoriesResponse], error)
 	ImportGitHubRepository(context.Context, *connect.Request[gen.ImportGitHubRepositoryRequest]) (*connect.Response[gen.ImportGitHubRepositoryResponse], error)
 	ListGitHubItems(context.Context, *connect.Request[gen.ListGitHubItemsRequest]) (*connect.Response[gen.ListGitHubItemsResponse], error)
+	// Work items (PROJECTS_AND_INTEGRATIONS.md): search a provider for the
+	// picker, read one item with the context an agent is given, turn a pasted
+	// link into its reference, and find the workspaces started from one.
+	SearchItems(context.Context, *connect.Request[gen.SearchItemsRequest]) (*connect.Response[gen.ItemPage], error)
+	GetItem(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemDetail], error)
+	ResolveItemUrl(context.Context, *connect.Request[gen.ResolveItemUrlRequest]) (*connect.Response[gen.ItemRef], error)
+	FindItemWorkspaces(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemWorkspaces], error)
 	AddLocalRepository(context.Context, *connect.Request[gen.AddLocalRepositoryRequest]) (*connect.Response[gen.AddLocalRepositoryResponse], error)
 	ListRepositories(context.Context, *connect.Request[gen.ListRepositoriesRequest]) (*connect.Response[gen.ListRepositoriesResponse], error)
 	RemoveRepository(context.Context, *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error)
+	// Home checkouts (WORKSPACES.md, "Home checkouts"): the person's own,
+	// non-worktree clone of a repository, for logins, long-lived dev servers
+	// and trying a module by hand. Owner only. Lazybox never deletes one, and
+	// no workspace operation touches it.
+	ListRepositoryHomes(context.Context, *connect.Request[gen.ListRepositoryHomesRequest]) (*connect.Response[gen.RepositoryHomes], error)
+	// Creates (clones), adopts (an existing checkout) or forgets a home; forgetting changes no file.
+	SetRepositoryHome(context.Context, *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error)
+	// Opens a repository's home in Finder or an editor on the Runner's computer.
+	OpenRepositoryHome(context.Context, *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error)
+	// Fetches the home's origin, then fast-forwards its default branch to the
+	// remote's only when it is checked out and has no changes; otherwise says
+	// why. Never discards, resets or switches anything.
+	UpdateRepositoryHome(context.Context, *connect.Request[gen.UpdateRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHomeUpdate], error)
 	CreateCollection(context.Context, *connect.Request[gen.CreateCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddCollectionRepositories(context.Context, *connect.Request[gen.AddCollectionRepositoriesRequest]) (*connect.Response[gen.CollectionResponse], error)
 	GetCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
+	// The workspaces in the person's order (ArrangeWorkspaces).
 	ListCollections(context.Context, *connect.Request[gen.ListCollectionsRequest]) (*connect.Response[gen.ListCollectionsResponse], error)
+	// Puts the workspaces in the person's order: the one ListCollections
+	// answers in, so every window and a paired phone list them alike, across
+	// restarts. The owner's only. Answers the list in its new order.
+	ArrangeWorkspaces(context.Context, *connect.Request[gen.ArrangeWorkspacesRequest]) (*connect.Response[gen.ListCollectionsResponse], error)
 	ArchiveCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	ReconcileCollection(context.Context, *connect.Request[gen.ReconcileCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
+	// The owner's only. What a previous Runner left unconfirmed in a workspace
+	// or a conversation (RESOURCE_OWNERSHIP.md, "Unconfirmed ownership"): each
+	// recorded agent and command, its PID and command line, and whether a
+	// process with that identity still runs, checked by the Runner. What it
+	// proves gone it settles there and then.
+	GetOwnership(context.Context, *connect.Request[gen.OwnershipRequest]) (*connect.Response[gen.Ownership], error)
+	// The owner's only. Settles it: stop exactly the recorded processes that
+	// still run (checked by identity, never a PID given to another program
+	// since), or record the person's word that they stopped.
+	ResolveOwnership(context.Context, *connect.Request[gen.ResolveOwnershipRequest]) (*connect.Response[gen.Ownership], error)
 	OpenSession(context.Context, *connect.Request[gen.OpenSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	OpenAssistant(context.Context, *connect.Request[gen.OpenAssistantRequest]) (*connect.Response[gen.SessionResponse], error)
 	RenameConversation(context.Context, *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Pin or unpin a conversation (any of its attempts' IDs). The owner's only.
+	PinConversation(context.Context, *connect.Request[gen.PinConversationRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Archive a conversation, or bring it back. Nothing is stopped or deleted:
+	// its agent keeps any turn in progress, and History still lists it.
+	ArchiveConversation(context.Context, *connect.Request[gen.ArchiveConversationRequest]) (*connect.Response[gen.SessionResponse], error)
 	ListWorkspaceChanges(context.Context, *connect.Request[gen.WorkspaceChangesRequest]) (*connect.Response[gen.WorkspaceChanges], error)
 	ReadWorkspaceDiff(context.Context, *connect.Request[gen.WorkspaceDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
 	ReadWorkspaceFile(context.Context, *connect.Request[gen.WorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
 	SaveWorkspaceFile(context.Context, *connect.Request[gen.SaveWorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
+	SearchWorkspaceFiles(context.Context, *connect.Request[gen.SearchWorkspaceFilesRequest]) (*connect.Response[gen.WorkspaceFileSearch], error)
+	ResolveWorkspacePath(context.Context, *connect.Request[gen.ResolveWorkspacePathRequest]) (*connect.Response[gen.WorkspacePathResolution], error)
 	ListHistory(context.Context, *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error)
 	ResumeSession(context.Context, *connect.Request[gen.ResumeSessionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Continues the conversation in a new agent started with another permission
+	// mode, for an agent whose running worker cannot change mode live.
+	RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Continues the conversation in a new agent started with another
+	// model, for an agent whose running worker cannot switch model live: it is
+	// ended between turns and the same provider conversation resumes.
+	RestartWithModel(context.Context, *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. "Give Claude the browser" (BROWSER.md): turns the agent
+	// browser back on for the conversation's workspace if the person turned it
+	// off there, and, for an agent started without the browser tools, ends it
+	// between turns and resumes the same provider conversation in a new agent
+	// that has them. Returns the session the conversation continues in.
+	GiveBrowser(context.Context, *connect.Request[gen.GiveBrowserRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Moves a live conversation to another signed-in subscription of
+	// its provider and continues the same conversation: the same execution,
+	// workspace, commands and queued messages, with a portable checkpoint for the
+	// new account. The current subscription retries in place (after a reset).
+	SwitchSubscription(context.Context, *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Turns automatic switching at a subscription limit on or off
+	// for a conversation that already runs, or for every running one.
+	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
+	// The bytes of an image or a text file a sent message carried, so the
+	// conversation can show it: only a file the Runner retained as a message
+	// attachment (the path an operation_accepted record lists), only an image
+	// type a browser displays (PNG, JPEG, GIF, WebP) or text (valid UTF-8, no
+	// NUL; always served as text/plain), at most 20 MiB. The owner, and a
+	// paired phone reading conversations (REMOTE.md); never an agent.
+	ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	StopSessionResources(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	DeleteConversation(context.Context, *connect.Request[gen.DeleteConversationRequest]) (*connect.Response[gen.DeleteConversationResponse], error)
@@ -277,15 +832,354 @@ type RunnerServiceClient interface {
 	DeleteWorkspace(context.Context, *connect.Request[gen.DeleteWorkspaceRequest]) (*connect.Response[gen.CollectionResponse], error)
 	ContinueSession(context.Context, *connect.Request[gen.ContinueSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	WatchEvents(context.Context, *connect.Request[gen.WatchEventsRequest]) (*connect.ServerStreamForClient[gen.JournalEvent], error)
+	// The latest turns of a conversation in one response, or an earlier page:
+	// a window shows the latest at once and reads the rest in a few pages
+	// instead of a record-per-message replay. Turn starts come from an index the
+	// Runner keeps as journals open and grow, so no journal is parsed to find
+	// them.
+	ReadSessionTail(context.Context, *connect.Request[gen.ReadSessionTailRequest]) (*connect.Response[gen.ReadSessionTailResponse], error)
 	StartCommand(context.Context, *connect.Request[gen.StartCommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	RegisterPipe(context.Context, *connect.Request[gen.RegisterPipeRequest]) (*connect.Response[gen.CommandStatus], error)
 	Publish(context.Context, *connect.Request[gen.PublishRequest]) (*connect.Response[gen.CommandStatus], error)
 	FinishPipe(context.Context, *connect.Request[gen.FinishPipeRequest]) (*connect.Response[gen.CommandStatus], error)
 	ListCommands(context.Context, *connect.Request[gen.ListCommandsRequest]) (*connect.Response[gen.ListCommandsResponse], error)
+	// Takes a terminal run shared with a conversation (`lazybox log --to`) for
+	// one composer: true for the first caller only, so the run is added once.
+	ClaimCommandShare(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.ClaimCommandShareResponse], error)
 	ReadCommand(context.Context, *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error)
 	WaitCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	CancelCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
+	// Moves a `lazybox run` that is still in the foreground to the background:
+	// the agent's (or the person's) call returns now with a report, and the
+	// command keeps running, its output still streaming to the console. Only a
+	// run whose CLI follows the Runner (CommandStatus.can_background) can move.
+	BackgroundCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
+	// The `lazybox run` that publishes a pipe reports its state (foreground or
+	// background, its process, its listening ports) and waits up to wait_ms for
+	// what the Runner asks of it: stop the command, or move it to the
+	// background. Calling it makes the pipe followed: a Runner restart keeps it,
+	// and CancelCommand stops it through its CLI.
+	FollowPipe(context.Context, *connect.Request[gen.FollowPipeRequest]) (*connect.Response[gen.FollowPipeResponse], error)
 	WatchOutput(context.Context, *connect.Request[gen.WatchOutputRequest]) (*connect.ServerStreamForClient[gen.OutputEvent], error)
+	// Workspace terminals: a person's interactive shell, never an agent's.
+	OpenTerminal(context.Context, *connect.Request[gen.OpenTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	ListTerminals(context.Context, *connect.Request[gen.ListTerminalsRequest]) (*connect.Response[gen.ListTerminalsResponse], error)
+	WatchTerminal(context.Context, *connect.Request[gen.WatchTerminalRequest]) (*connect.ServerStreamForClient[gen.TerminalEvent], error)
+	WriteTerminal(context.Context, *connect.Request[gen.WriteTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	ResizeTerminal(context.Context, *connect.Request[gen.ResizeTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	CloseTerminal(context.Context, *connect.Request[gen.TerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	// Owner only. Asks the launcher that supervises this Runner to start it
+	// again: the Runner records the request and stops exactly as on any restart,
+	// detaching (never stopping) agents, managed commands and terminals.
+	RestartRunner(context.Context, *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error)
+	// The PR loop, per workspace repository: the owner's only Git and GitHub
+	// writes. Agent credentials can never call these.
+	CommitWorkspaceChanges(context.Context, *connect.Request[gen.CommitWorkspaceChangesRequest]) (*connect.Response[gen.CommitWorkspaceChangesResponse], error)
+	PushWorkspaceBranch(context.Context, *connect.Request[gen.PushWorkspaceBranchRequest]) (*connect.Response[gen.PushWorkspaceBranchResponse], error)
+	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	// The sidebar's git state, per workspace and repository: branch, ahead and
+	// behind its pushed branch and the default branch, uncommitted files, and the
+	// last pull request seen for the branch. Local Git only (no fetch); the pull
+	// request comes from the tracked items (ListLinks), which the Runner keeps
+	// fresh in the background for pushed branches. Owner only.
+	ListWorkspaceGitSummaries(context.Context, *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error)
+	// Tracked work items (PROJECTS_AND_INTEGRATIONS.md, GITHUB.md "Tracked pull
+	// requests"): the pull requests a workspace delivers and the items it
+	// mentions, kept fresh by their provider and persisted across restarts.
+	// ListLinks and LinkItem admit an agent for its own workspace (`lazybox
+	// items`, `lazybox link`); a paired phone reads them with the read grant.
+	ListLinks(context.Context, *connect.Request[gen.ListLinksRequest]) (*connect.Response[gen.Links], error)
+	LinkItem(context.Context, *connect.Request[gen.LinkItemRequest]) (*connect.Response[gen.Links], error)
+	UnlinkItem(context.Context, *connect.Request[gen.UnlinkItemRequest]) (*connect.Response[gen.Links], error)
+	// One-click reactions to a tracked pull request, always a person's: the
+	// failing checks' logs, compacted as `lazybox run` compacts output, and
+	// GitHub's review comments as Review comments, each sent to the
+	// conversation that delivered it (queued while it is mid-turn).
+	SendPullRequestFailures(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error)
+	ImportPullRequestReview(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error)
+	// Inline review comments on a workspace's changes, kept per workspace on the
+	// Runner so every window shows them. Owner only. Every reply is the whole
+	// review, each comment anchored against the working tree as it is now.
+	ListReviewComments(context.Context, *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	AddReviewComment(context.Context, *connect.Request[gen.AddReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	EditReviewComment(context.Context, *connect.Request[gen.EditReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	DeleteReviewComment(context.Context, *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	SetReviewDisposition(context.Context, *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	SetReviewAutoResolve(context.Context, *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// Owner only. One-click cross-agent review (GITHUB.md, "Agent review"):
+	// opens a read-only conversation in the same workspace on another agent
+	// (by default the other provider than the source conversation's), titled
+	// "Review · <scope> · <agent>", linked to the source, and sends it a brief
+	// generated from the source's goal, the scope's diff and files, and the
+	// `lazybox run` evidence so far. Its findings land in the workspace's review.
+	StartReview(context.Context, *connect.Request[gen.StartReviewRequest]) (*connect.Response[gen.StartReviewResponse], error)
+	// A reviewer's finding, from `lazybox review add`. An agent credential may
+	// call it only for its own execution, and only while that execution is the
+	// reviewer of a review in its own workspace: the Runner derives the
+	// workspace, review and author from the execution, never the request. A
+	// finding with the key of one already filed in that review updates it.
+	AddReviewFinding(context.Context, *connect.Request[gen.AddReviewFindingRequest]) (*connect.Response[gen.ReviewFinding], error)
+	// The findings of the review an execution is the reviewer (or the author)
+	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
+	ListReviewFindings(context.Context, *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error)
+	// The reviewer's verdict on one of its own findings in a later round
+	// (`lazybox review resolve|reopen <id> --note`): resolved, or still open.
+	// The same agent rule as AddReviewFinding; only findings of its own review.
+	SetReviewFindingState(context.Context, *connect.Request[gen.SetReviewFindingStateRequest]) (*connect.Response[gen.ReviewFinding], error)
+	// Owner only. Controls a review's loop: pause, resume, stop, take over,
+	// and how findings reach the author between rounds.
+	UpdateReviewRun(context.Context, *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// Owner only. Cancels a review under way (GITHUB.md, "Cancelling a
+	// review"): no further round of its loop starts, the reviewer's running
+	// turn is interrupted and its session ended. Its conversation and the
+	// findings it filed are kept; the review reads "cancelled", with who
+	// cancelled it and when. The reply is the review's workspace review.
+	CancelReview(context.Context, *connect.Request[gen.CancelReviewRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// One agent asks the other a question (`lazybox ask author|reviewer`): an
+	// agent credential may ask only for its own execution, and only between the
+	// author and the reviewer of one review in the same workspace. The question
+	// goes to the other conversation as a labelled message; its reply comes back.
+	AskAgent(context.Context, *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error)
+	// Waits, at most timeout_seconds (bounded), for the reply. Only the asker.
+	WaitAgentAsk(context.Context, *connect.Request[gen.WaitAgentAskRequest]) (*connect.Response[gen.AgentAsk], error)
+	// Owner only. Every process the Runner hosts so it outlives the Runner
+	// (agents, managed commands, terminals), held by this Runner or orphaned.
+	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
+	// Owner only. Stops one hosted process the way its owner would: closes the
+	// agent's session, cancels the command, closes the terminal; an orphan is
+	// stopped directly.
+	StopProcess(context.Context, *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error)
+	// Owner only. The safe sweep: stops every host this Runner does not hold.
+	CleanUpOrphanProcesses(context.Context, *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error)
+	// Owner only. The orchestration process (v2/ORCHESTRATION.md §4) a mission
+	// in a workspace would run: a built-in preset, the user's process file and
+	// the repository's committed .lazybox/process.yaml, resolved under the
+	// user's ceiling and validated. Read-only; nothing runs it yet.
+	GetOrchestrationProcess(context.Context, *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error)
+	// Owner only. What that process does on one event type, in firing order.
+	ExplainOrchestrationProcess(context.Context, *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error)
+	// Owner only. Per-turn code checkpoints: the workspace's files saved to a
+	// private ref before each agent turn and after it, uncommitted and untracked
+	// files included. Lists a conversation's turns and reverts.
+	ListTurnCheckpoints(context.Context, *connect.Request[gen.TurnCheckpointsRequest]) (*connect.Response[gen.TurnCheckpoints], error)
+	// Owner only. What one turn changed (checkpoint before → after), per repository.
+	ListTurnChanges(context.Context, *connect.Request[gen.TurnChangesRequest]) (*connect.Response[gen.TurnChanges], error)
+	ReadTurnDiff(context.Context, *connect.Request[gen.TurnDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
+	// Owner only. What reverting to before a turn would change, without changing it.
+	PreviewRevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.RevertCodePreview], error)
+	// Owner only. Restores the workspace's files to before a turn, after saving
+	// the current ones so the revert can be undone. Never moves a branch.
+	// Refused while an agent in the workspace is in a turn.
+	RevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
+	// Owner only. Undoes the latest revert (an undo can itself be undone).
+	UndoRevertCode(context.Context, *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
+	// The workspace runtime (WORKSPACE_RUNTIME.md): each repository's committed
+	// .lazybox/workspace.yaml (setup, archive, actions, files to copy) and the
+	// workspace's port block. Owner only: neither an agent's nor a terminal's
+	// credential may call these. An agent starts an action only through its
+	// lazybox_command tool, and only when its session's permission allows.
+	GetWorkspaceRuntime(context.Context, *connect.Request[gen.WorkspaceRuntimeRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	// Approves exactly the repository scripts the person reviewed (by hash),
+	// optionally running setup right away.
+	ApproveWorkspaceScripts(context.Context, *connect.Request[gen.ApproveWorkspaceScriptsRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	StartWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error)
+	StopWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error)
+	RunWorkspaceSetup(context.Context, *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	GetWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
+	SaveWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
+	// Owner only. Remote control from a phone (REMOTE.md): how a paired device
+	// reaches this Runner, and turning the Tailscale route on or off.
+	GetRemoteAccess(context.Context, *connect.Request[gen.GetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error)
+	SetRemoteAccess(context.Context, *connect.Request[gen.SetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error)
+	// Owner only. A one-time, short-lived pairing offer for the QR code, its
+	// progress while the phone completes it, and withdrawing it.
+	BeginDevicePairing(context.Context, *connect.Request[gen.BeginDevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	GetDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	CancelDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	// Owner only. Paired devices, and revoking one: its access ends at its next request.
+	ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	// Web Push to a paired phone (REMOTE.md). A phone reads and sets its own
+	// subscription and preferences (the device allowlist admits it with read);
+	// the owner sees them on each device and can send it a test.
+	GetPushSettings(context.Context, *connect.Request[gen.GetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error)
+	SetPushSettings(context.Context, *connect.Request[gen.SetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error)
+	SendTestPush(context.Context, *connect.Request[gen.SendTestPushRequest]) (*connect.Response[gen.SendTestPushResponse], error)
+	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
+	// derived from its event log and live observations; nothing else is stored.
+	ListMissions(context.Context, *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error)
+	GetMission(context.Context, *connect.Request[gen.GetMissionRequest]) (*connect.Response[gen.Mission], error)
+	CreateMission(context.Context, *connect.Request[gen.CreateMissionRequest]) (*connect.Response[gen.Mission], error)
+	// One typed change: a goal, a task, an assignment, a report, a decision at
+	// a gate, a cancellation. Refused changes say why and write nothing.
+	UpdateMission(context.Context, *connect.Request[gen.UpdateMissionRequest]) (*connect.Response[gen.Mission], error)
+	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
+	// the snippet chain a conversation offers next.
+	ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error)
+	// The Orchestrator verbs (`lazybox agents …`; audits/2026-11-16/sota-agents.md
+	// §6.3). An agent credential calls them only for its own execution. Starting
+	// an agent needs an Orchestrator grant in force, which only the person gives
+	// (UpdateMission grant); every other verb reaches only the caller's own
+	// lineage: the children it started, or its parent. None approves, answers,
+	// passes a gate or accepts a task.
+	SpawnAgent(context.Context, *connect.Request[gen.SpawnAgentRequest]) (*connect.Response[gen.AgentLineage], error)
+	ListAgentLineage(context.Context, *connect.Request[gen.AgentLineageRequest]) (*connect.Response[gen.AgentLineage], error)
+	SendAgentMessage(context.Context, *connect.Request[gen.SendAgentMessageRequest]) (*connect.Response[gen.AgentMessageReceipt], error)
+	// Waits, at most timeout_seconds (bounded), until the targets reach a state
+	// or (until "event") anything happens in the lineage after after_seq.
+	WaitAgents(context.Context, *connect.Request[gen.WaitAgentsRequest]) (*connect.Response[gen.AgentLineage], error)
+	StopChildAgent(context.Context, *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error)
+	// A child reports its own task done to the person (and its parent).
+	ReportAgentTask(context.Context, *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error)
+	// An orchestrator proposes how it would split the mission into agents,
+	// with an estimate (`lazybox mission plan`). It waits for the person's
+	// approval (UpdateMission approve_plan, owner only) before any of them
+	// starts when the grant requires a plan.
+	ProposePlan(context.Context, *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error)
+	// Advisory path leases (`lazybox lease`): an agent leases paths for its own
+	// task (an orchestrator, for its agents' tasks). Nothing is blocked; an
+	// edit inside another task's exclusive lease is recorded as an overlap.
+	ClaimLease(context.Context, *connect.Request[gen.ClaimLeaseRequest]) (*connect.Response[gen.MissionLeases], error)
+	ReleaseLease(context.Context, *connect.Request[gen.ReleaseLeaseRequest]) (*connect.Response[gen.MissionLeases], error)
+	ListLeases(context.Context, *connect.Request[gen.LeasesRequest]) (*connect.Response[gen.MissionLeases], error)
+	// Artifacts: versioned documents (plans, reports, specs, notes) of one
+	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
+	// read and put artifacts of its own execution's workspace only
+	// (`lazybox artifact`), and retire the ones an agent published there;
+	// everything else here is the owner's.
+	ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error)
+	GetArtifact(context.Context, *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Creates an artifact, or appends a version to one. The author is who called
+	// (a person, or the agent whose credential it is), never what the request says.
+	PutArtifact(context.Context, *connect.Request[gen.PutArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Tracks a workspace text file: the artifact's first version is
+	// the file, and the Runner records a version whenever the file changes on
+	// disk. Tracking a file that is already tracked returns that artifact.
+	TrackArtifactFile(context.Context, *connect.Request[gen.TrackArtifactFileRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Rename, change kind, or stop following the tracked file.
+	UpdateArtifact(context.Context, *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	DeleteArtifact(context.Context, *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error)
+	// Retires an artifact, or restores a retired one. Retiring is reversible:
+	// the artifact and every version are kept, it leaves the default list, and
+	// it may name the artifact that supersedes it. The owner retires or restores
+	// any; an agent credential may only retire, in its own execution's
+	// workspace, an artifact every version of which an agent published.
+	RetireArtifact(context.Context, *connect.Request[gen.RetireArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Writes the artifact's latest version into a workspace
+	// repository; never stages or commits.
+	SaveArtifactToRepository(context.Context, *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error)
+	// Owner only. Opens a GitHub issue with the artifact as its body, in a
+	// workspace repository's GitHub project, through the GitHub connection.
+	CreateArtifactIssue(context.Context, *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error)
+	// Power-user extensibility (POWER.md), owner only. The user's actions and
+	// hooks file as the Runner last loaded it: actions the app offers in its
+	// menus and runs with the owner's own rules, hooks the Runner fires on
+	// events, and every problem with the file by line.
+	GetUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error)
+	// Owner only. Creates the actions file with a commented starter and its
+	// JSON Schema beside it, when there is none; never replaces a file.
+	InitUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error)
+	// Owner only. Recent hook runs, newest first; each run's output is its
+	// command's (ReadCommand).
+	ListHookRuns(context.Context, *connect.Request[gen.ListHookRunsRequest]) (*connect.Response[gen.HookRuns], error)
+	// Owner only. Fires one hook now with a sample event, as Settings' Test does.
+	TestHook(context.Context, *connect.Request[gen.TestHookRequest]) (*connect.Response[gen.HookRun], error)
+	// Owner only. Asks the person's open Lazybox window to do something the CLI
+	// cannot: show a workspace, conversation or file (`lazybox open`), take a
+	// screenshot (`lazybox shot`) or run a user action (`lazybox actions run`).
+	// Refused at once when no window is open to handle it.
+	PostUiRequest(context.Context, *connect.Request[gen.UiRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. Waits for a posted request's outcome (bounded).
+	WaitUiRequest(context.Context, *connect.Request[gen.WaitUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. A window follows the requests addressed to it…
+	WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest]) (*connect.ServerStreamForClient[gen.UiRequest], error)
+	// …and answers each one, with a screenshot's PNG when one was asked for.
+	CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. The person's config files beside the actions file (POWER.md,
+	// "Config files"): keys.yaml, settings.yaml and layouts/*.yaml as the
+	// Runner last loaded them, each with its problems by line. A file that does
+	// not load keeps its last good version in force, marked stale.
+	GetConfigFiles(context.Context, *connect.Request[gen.GetConfigFilesRequest]) (*connect.Response[gen.ConfigFiles], error)
+	// Owner only. Changes one config file: values at paths (comments kept), a
+	// whole new content (import), or removal (a layout). Nothing is written
+	// when the result would not load; the refusal names each problem by line.
+	UpdateConfigFile(context.Context, *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error)
+	// Owner only. Sandboxed panel extensions (EXTENSIONS.md): the folders in the
+	// config folder's extensions/, each with what its manifest asks for, what
+	// the person approved, and its state. Reloaded every second.
+	ListExtensions(context.Context, *connect.Request[gen.ListExtensionsRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Approves exactly the grants and hosts the person was shown and
+	// turns the extension on; refused when its manifest asks for anything else
+	// now, or does not load.
+	ApproveExtension(context.Context, *connect.Request[gen.ApproveExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Turns an approved extension off, or back on (refused when it
+	// asks for more than was approved: that needs ApproveExtension).
+	SetExtensionEnabled(context.Context, *connect.Request[gen.SetExtensionEnabledRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Deletes an extension's folder and its approval.
+	RemoveExtension(context.Context, *connect.Request[gen.RemoveExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Copies one of the bundled examples into the folder, not yet approved.
+	InstallExampleExtension(context.Context, *connect.Request[gen.InstallExampleExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Opens one panel of a running extension: the address of its
+	// sandboxed page on the extension content origin, and the credential the
+	// app's bridge calls the Runner with for it, which admits its approved
+	// grants alone and is revoked when they change.
+	OpenExtensionPanel(context.Context, *connect.Request[gen.OpenExtensionPanelRequest]) (*connect.Response[gen.ExtensionPanelSession], error)
+	// Agents ask for a repository instead of reaching outside their workspace
+	// (WORKSPACES.md, "When an agent needs another repository"). An agent
+	// credential may list its own execution's workspace repositories, ask to
+	// add one to that workspace and wait for the person's answer: it can never
+	// add one. Adding is the owner's PrepareWorkspace, with
+	// repository_request_id; declining is DeclineRepositoryRequest.
+	ListWorkspaceRepositories(context.Context, *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error)
+	// Matches the query against the repository catalog and records a pending
+	// request on the asking conversation; adds nothing.
+	RequestRepository(context.Context, *connect.Request[gen.RequestRepositoryRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Owner only. Declines a request; the agent is told the reason.
+	DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Agents ask the person to start a conversation (docs/guides/orchestrator.md,
+	// "Ask an agent to start another conversation"). An agent credential may
+	// ask for its own execution and wait for its own requests: it never starts
+	// one. The request waits in the asking conversation like an approval; the
+	// person starts it (as asked, or edited) or declines it. A conversation
+	// that holds an Orchestrator grant in force starts the agent at once, as
+	// SpawnAgent does, under that grant.
+	RequestConversationStart(context.Context, *connect.Request[gen.RequestConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitConversationStart(context.Context, *connect.Request[gen.WaitConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// The person's answer: start (with their edits) or decline. A paired phone
+	// that may respond answers it, without changing the agent or workspace.
+	AnswerConversationStart(context.Context, *connect.Request[gen.AnswerConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
+	// drives through its browser_* tools and the person watches beside the
+	// chat. Every RPC below is the owner's. An agent reaches only its own
+	// conversation's browser, and only through the tool pipe of its own
+	// execution, never with a credential.
+	//
+	// Follows one conversation's browser: its state and recent action log
+	// first, then live frames (only while someone watches), actions and state.
+	WatchBrowser(context.Context, *connect.Request[gen.WatchBrowserRequest]) (*connect.ServerStreamForClient[gen.BrowserEvent], error)
+	// Take over / Give back / Stop / Let the agent browse again, browse freely,
+	// and the person's own navigation while they hold the browser.
+	ControlBrowser(context.Context, *connect.Request[gen.ControlBrowserRequest]) (*connect.Response[gen.BrowserState], error)
+	// The person's mouse and keyboard while they hold the browser (Take over).
+	SendBrowserInput(context.Context, *connect.Request[gen.BrowserInputRequest]) (*connect.Response[gen.BrowserState], error)
+	// Answers a site, download or sign-in request the agent's browsing raised.
+	DecideBrowserRequest(context.Context, *connect.Request[gen.DecideBrowserRequestRequest]) (*connect.Response[gen.BrowserState], error)
+	// Settings → Browser.
+	GetBrowserSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.BrowserSettings], error)
+	SaveBrowserSettings(context.Context, *connect.Request[gen.BrowserSettings]) (*connect.Response[gen.BrowserSettings], error)
+	// Closes a workspace's agent browsers and deletes its browser profile
+	// (cookies, storage, cache) and its always-allowed sites.
+	ClearBrowserData(context.Context, *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error)
+	// Installs the Chromium the agent browser runs, in a developer build whose
+	// Chromium is missing (BrowserSettings.installable), as a command whose
+	// output Settings → Browser shows. One at a time: a second call returns the
+	// install already running.
+	InstallBrowser(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.CommandStatus], error)
 }
 
 // NewRunnerServiceClient constructs a client for the lazybox.bench.v1.RunnerService service. By
@@ -317,6 +1211,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("PrepareWorkspace")),
 			connect.WithClientOptions(opts...),
 		),
+		listRepositoryBranches: connect.NewClient[gen.ListRepositoryBranchesRequest, gen.RepositoryBranches](
+			httpClient,
+			baseURL+RunnerServiceListRepositoryBranchesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryBranches")),
+			connect.WithClientOptions(opts...),
+		),
+		refreshRepositoryIdentity: connect.NewClient[gen.RefreshRepositoryIdentityRequest, gen.RepositoryIdentityRefresh](
+			httpClient,
+			baseURL+RunnerServiceRefreshRepositoryIdentityProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RefreshRepositoryIdentity")),
+			connect.WithClientOptions(opts...),
+		),
 		version: connect.NewClient[gen.VersionRequest, gen.VersionResponse](
 			httpClient,
 			baseURL+RunnerServiceVersionProcedure,
@@ -341,10 +1247,52 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("SetModelPrice")),
 			connect.WithClientOptions(opts...),
 		),
+		getClaudeAuth: connect.NewClient[gen.InfoRequest, gen.ClaudeAuth](
+			httpClient,
+			baseURL+RunnerServiceGetClaudeAuthProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetClaudeAuth")),
+			connect.WithClientOptions(opts...),
+		),
+		setClaudeApiKey: connect.NewClient[gen.SetClaudeApiKeyRequest, gen.ClaudeAuth](
+			httpClient,
+			baseURL+RunnerServiceSetClaudeApiKeyProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetClaudeApiKey")),
+			connect.WithClientOptions(opts...),
+		),
+		listThemes: connect.NewClient[gen.ListThemesRequest, gen.ThemeFolder](
+			httpClient,
+			baseURL+RunnerServiceListThemesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListThemes")),
+			connect.WithClientOptions(opts...),
+		),
+		createTheme: connect.NewClient[gen.CreateThemeRequest, gen.CreateThemeResponse](
+			httpClient,
+			baseURL+RunnerServiceCreateThemeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CreateTheme")),
+			connect.WithClientOptions(opts...),
+		),
 		info: connect.NewClient[gen.InfoRequest, gen.InfoResponse](
 			httpClient,
 			baseURL+RunnerServiceInfoProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("Info")),
+			connect.WithClientOptions(opts...),
+		),
+		getProviderAvailability: connect.NewClient[gen.ProviderAvailabilityRequest, gen.ProviderAvailability](
+			httpClient,
+			baseURL+RunnerServiceGetProviderAvailabilityProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetProviderAvailability")),
+			connect.WithClientOptions(opts...),
+		),
+		saveAcpAgent: connect.NewClient[gen.SaveAcpAgentRequest, gen.ProviderAvailability](
+			httpClient,
+			baseURL+RunnerServiceSaveAcpAgentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SaveAcpAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		removeAcpAgent: connect.NewClient[gen.RemoveAcpAgentRequest, gen.ProviderAvailability](
+			httpClient,
+			baseURL+RunnerServiceRemoveAcpAgentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RemoveAcpAgent")),
 			connect.WithClientOptions(opts...),
 		),
 		getTelemetry: connect.NewClient[gen.TelemetryRequest, gen.TelemetryReport](
@@ -381,6 +1329,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceRefreshSubscriptionProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("RefreshSubscription")),
+			connect.WithClientOptions(opts...),
+		),
+		removeSubscription: connect.NewClient[gen.RemoveSubscriptionRequest, gen.InfoResponse](
+			httpClient,
+			baseURL+RunnerServiceRemoveSubscriptionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RemoveSubscription")),
 			connect.WithClientOptions(opts...),
 		),
 		getGitHubConnection: connect.NewClient[gen.GetGitHubConnectionRequest, gen.GitHubConnection](
@@ -461,6 +1415,30 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ListGitHubItems")),
 			connect.WithClientOptions(opts...),
 		),
+		searchItems: connect.NewClient[gen.SearchItemsRequest, gen.ItemPage](
+			httpClient,
+			baseURL+RunnerServiceSearchItemsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SearchItems")),
+			connect.WithClientOptions(opts...),
+		),
+		getItem: connect.NewClient[gen.ItemRequest, gen.ItemDetail](
+			httpClient,
+			baseURL+RunnerServiceGetItemProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetItem")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveItemUrl: connect.NewClient[gen.ResolveItemUrlRequest, gen.ItemRef](
+			httpClient,
+			baseURL+RunnerServiceResolveItemUrlProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ResolveItemUrl")),
+			connect.WithClientOptions(opts...),
+		),
+		findItemWorkspaces: connect.NewClient[gen.ItemRequest, gen.ItemWorkspaces](
+			httpClient,
+			baseURL+RunnerServiceFindItemWorkspacesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("FindItemWorkspaces")),
+			connect.WithClientOptions(opts...),
+		),
 		addLocalRepository: connect.NewClient[gen.AddLocalRepositoryRequest, gen.AddLocalRepositoryResponse](
 			httpClient,
 			baseURL+RunnerServiceAddLocalRepositoryProcedure,
@@ -477,6 +1455,30 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceRemoveRepositoryProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("RemoveRepository")),
+			connect.WithClientOptions(opts...),
+		),
+		listRepositoryHomes: connect.NewClient[gen.ListRepositoryHomesRequest, gen.RepositoryHomes](
+			httpClient,
+			baseURL+RunnerServiceListRepositoryHomesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryHomes")),
+			connect.WithClientOptions(opts...),
+		),
+		setRepositoryHome: connect.NewClient[gen.SetRepositoryHomeRequest, gen.RepositoryHome](
+			httpClient,
+			baseURL+RunnerServiceSetRepositoryHomeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetRepositoryHome")),
+			connect.WithClientOptions(opts...),
+		),
+		openRepositoryHome: connect.NewClient[gen.OpenRepositoryHomeRequest, gen.OpenRepositoryHomeResponse](
+			httpClient,
+			baseURL+RunnerServiceOpenRepositoryHomeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("OpenRepositoryHome")),
+			connect.WithClientOptions(opts...),
+		),
+		updateRepositoryHome: connect.NewClient[gen.UpdateRepositoryHomeRequest, gen.RepositoryHomeUpdate](
+			httpClient,
+			baseURL+RunnerServiceUpdateRepositoryHomeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateRepositoryHome")),
 			connect.WithClientOptions(opts...),
 		),
 		createCollection: connect.NewClient[gen.CreateCollectionRequest, gen.CollectionResponse](
@@ -503,6 +1505,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ListCollections")),
 			connect.WithClientOptions(opts...),
 		),
+		arrangeWorkspaces: connect.NewClient[gen.ArrangeWorkspacesRequest, gen.ListCollectionsResponse](
+			httpClient,
+			baseURL+RunnerServiceArrangeWorkspacesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ArrangeWorkspaces")),
+			connect.WithClientOptions(opts...),
+		),
 		archiveCollection: connect.NewClient[gen.CollectionRequest, gen.CollectionResponse](
 			httpClient,
 			baseURL+RunnerServiceArchiveCollectionProcedure,
@@ -513,6 +1521,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceReconcileCollectionProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("ReconcileCollection")),
+			connect.WithClientOptions(opts...),
+		),
+		getOwnership: connect.NewClient[gen.OwnershipRequest, gen.Ownership](
+			httpClient,
+			baseURL+RunnerServiceGetOwnershipProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetOwnership")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveOwnership: connect.NewClient[gen.ResolveOwnershipRequest, gen.Ownership](
+			httpClient,
+			baseURL+RunnerServiceResolveOwnershipProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ResolveOwnership")),
 			connect.WithClientOptions(opts...),
 		),
 		openSession: connect.NewClient[gen.OpenSessionRequest, gen.SessionResponse](
@@ -531,6 +1551,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceRenameConversationProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("RenameConversation")),
+			connect.WithClientOptions(opts...),
+		),
+		pinConversation: connect.NewClient[gen.PinConversationRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServicePinConversationProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PinConversation")),
+			connect.WithClientOptions(opts...),
+		),
+		archiveConversation: connect.NewClient[gen.ArchiveConversationRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceArchiveConversationProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ArchiveConversation")),
 			connect.WithClientOptions(opts...),
 		),
 		listWorkspaceChanges: connect.NewClient[gen.WorkspaceChangesRequest, gen.WorkspaceChanges](
@@ -557,6 +1589,18 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceFile")),
 			connect.WithClientOptions(opts...),
 		),
+		searchWorkspaceFiles: connect.NewClient[gen.SearchWorkspaceFilesRequest, gen.WorkspaceFileSearch](
+			httpClient,
+			baseURL+RunnerServiceSearchWorkspaceFilesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SearchWorkspaceFiles")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveWorkspacePath: connect.NewClient[gen.ResolveWorkspacePathRequest, gen.WorkspacePathResolution](
+			httpClient,
+			baseURL+RunnerServiceResolveWorkspacePathProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ResolveWorkspacePath")),
+			connect.WithClientOptions(opts...),
+		),
 		listHistory: connect.NewClient[gen.ListHistoryRequest, gen.ListHistoryResponse](
 			httpClient,
 			baseURL+RunnerServiceListHistoryProcedure,
@@ -569,6 +1613,36 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ResumeSession")),
 			connect.WithClientOptions(opts...),
 		),
+		restartWithPermission: connect.NewClient[gen.RestartWithPermissionRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceRestartWithPermissionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RestartWithPermission")),
+			connect.WithClientOptions(opts...),
+		),
+		restartWithModel: connect.NewClient[gen.RestartWithModelRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceRestartWithModelProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RestartWithModel")),
+			connect.WithClientOptions(opts...),
+		),
+		giveBrowser: connect.NewClient[gen.GiveBrowserRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceGiveBrowserProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GiveBrowser")),
+			connect.WithClientOptions(opts...),
+		),
+		switchSubscription: connect.NewClient[gen.SwitchSubscriptionRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceSwitchSubscriptionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SwitchSubscription")),
+			connect.WithClientOptions(opts...),
+		),
+		setSessionRotation: connect.NewClient[gen.SetSessionRotationRequest, gen.SessionResponse](
+			httpClient,
+			baseURL+RunnerServiceSetSessionRotationProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetSessionRotation")),
+			connect.WithClientOptions(opts...),
+		),
 		getSession: connect.NewClient[gen.SessionRequest, gen.SessionResponse](
 			httpClient,
 			baseURL+RunnerServiceGetSessionProcedure,
@@ -579,6 +1653,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+RunnerServiceApplyProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("Apply")),
+			connect.WithClientOptions(opts...),
+		),
+		readAttachment: connect.NewClient[gen.ReadAttachmentRequest, gen.AttachmentContent](
+			httpClient,
+			baseURL+RunnerServiceReadAttachmentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReadAttachment")),
 			connect.WithClientOptions(opts...),
 		),
 		closeSession: connect.NewClient[gen.SessionRequest, gen.SessionResponse](
@@ -623,6 +1703,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("WatchEvents")),
 			connect.WithClientOptions(opts...),
 		),
+		readSessionTail: connect.NewClient[gen.ReadSessionTailRequest, gen.ReadSessionTailResponse](
+			httpClient,
+			baseURL+RunnerServiceReadSessionTailProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReadSessionTail")),
+			connect.WithClientOptions(opts...),
+		),
 		startCommand: connect.NewClient[gen.StartCommandRequest, gen.CommandStatus](
 			httpClient,
 			baseURL+RunnerServiceStartCommandProcedure,
@@ -653,6 +1739,12 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("ListCommands")),
 			connect.WithClientOptions(opts...),
 		),
+		claimCommandShare: connect.NewClient[gen.CommandRequest, gen.ClaimCommandShareResponse](
+			httpClient,
+			baseURL+RunnerServiceClaimCommandShareProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ClaimCommandShare")),
+			connect.WithClientOptions(opts...),
+		),
 		readCommand: connect.NewClient[gen.ReadCommandRequest, gen.ReadCommandResponse](
 			httpClient,
 			baseURL+RunnerServiceReadCommandProcedure,
@@ -671,10 +1763,712 @@ func NewRunnerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(runnerServiceMethods.ByName("CancelCommand")),
 			connect.WithClientOptions(opts...),
 		),
+		backgroundCommand: connect.NewClient[gen.CommandRequest, gen.CommandStatus](
+			httpClient,
+			baseURL+RunnerServiceBackgroundCommandProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("BackgroundCommand")),
+			connect.WithClientOptions(opts...),
+		),
+		followPipe: connect.NewClient[gen.FollowPipeRequest, gen.FollowPipeResponse](
+			httpClient,
+			baseURL+RunnerServiceFollowPipeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("FollowPipe")),
+			connect.WithClientOptions(opts...),
+		),
 		watchOutput: connect.NewClient[gen.WatchOutputRequest, gen.OutputEvent](
 			httpClient,
 			baseURL+RunnerServiceWatchOutputProcedure,
 			connect.WithSchema(runnerServiceMethods.ByName("WatchOutput")),
+			connect.WithClientOptions(opts...),
+		),
+		openTerminal: connect.NewClient[gen.OpenTerminalRequest, gen.TerminalStatus](
+			httpClient,
+			baseURL+RunnerServiceOpenTerminalProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("OpenTerminal")),
+			connect.WithClientOptions(opts...),
+		),
+		listTerminals: connect.NewClient[gen.ListTerminalsRequest, gen.ListTerminalsResponse](
+			httpClient,
+			baseURL+RunnerServiceListTerminalsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListTerminals")),
+			connect.WithClientOptions(opts...),
+		),
+		watchTerminal: connect.NewClient[gen.WatchTerminalRequest, gen.TerminalEvent](
+			httpClient,
+			baseURL+RunnerServiceWatchTerminalProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WatchTerminal")),
+			connect.WithClientOptions(opts...),
+		),
+		writeTerminal: connect.NewClient[gen.WriteTerminalRequest, gen.TerminalStatus](
+			httpClient,
+			baseURL+RunnerServiceWriteTerminalProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WriteTerminal")),
+			connect.WithClientOptions(opts...),
+		),
+		resizeTerminal: connect.NewClient[gen.ResizeTerminalRequest, gen.TerminalStatus](
+			httpClient,
+			baseURL+RunnerServiceResizeTerminalProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ResizeTerminal")),
+			connect.WithClientOptions(opts...),
+		),
+		closeTerminal: connect.NewClient[gen.TerminalRequest, gen.TerminalStatus](
+			httpClient,
+			baseURL+RunnerServiceCloseTerminalProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CloseTerminal")),
+			connect.WithClientOptions(opts...),
+		),
+		restartRunner: connect.NewClient[gen.RestartRunnerRequest, gen.RestartRunnerResponse](
+			httpClient,
+			baseURL+RunnerServiceRestartRunnerProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RestartRunner")),
+			connect.WithClientOptions(opts...),
+		),
+		commitWorkspaceChanges: connect.NewClient[gen.CommitWorkspaceChangesRequest, gen.CommitWorkspaceChangesResponse](
+			httpClient,
+			baseURL+RunnerServiceCommitWorkspaceChangesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CommitWorkspaceChanges")),
+			connect.WithClientOptions(opts...),
+		),
+		pushWorkspaceBranch: connect.NewClient[gen.PushWorkspaceBranchRequest, gen.PushWorkspaceBranchResponse](
+			httpClient,
+			baseURL+RunnerServicePushWorkspaceBranchProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PushWorkspaceBranch")),
+			connect.WithClientOptions(opts...),
+		),
+		createPullRequest: connect.NewClient[gen.CreatePullRequestRequest, gen.PullRequestStatus](
+			httpClient,
+			baseURL+RunnerServiceCreatePullRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CreatePullRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		getPullRequest: connect.NewClient[gen.GetPullRequestRequest, gen.PullRequestStatus](
+			httpClient,
+			baseURL+RunnerServiceGetPullRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetPullRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		mergePullRequest: connect.NewClient[gen.MergePullRequestRequest, gen.PullRequestStatus](
+			httpClient,
+			baseURL+RunnerServiceMergePullRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		listWorkspaceGitSummaries: connect.NewClient[gen.WorkspaceGitSummariesRequest, gen.WorkspaceGitSummaries](
+			httpClient,
+			baseURL+RunnerServiceListWorkspaceGitSummariesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceGitSummaries")),
+			connect.WithClientOptions(opts...),
+		),
+		listLinks: connect.NewClient[gen.ListLinksRequest, gen.Links](
+			httpClient,
+			baseURL+RunnerServiceListLinksProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListLinks")),
+			connect.WithClientOptions(opts...),
+		),
+		linkItem: connect.NewClient[gen.LinkItemRequest, gen.Links](
+			httpClient,
+			baseURL+RunnerServiceLinkItemProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("LinkItem")),
+			connect.WithClientOptions(opts...),
+		),
+		unlinkItem: connect.NewClient[gen.UnlinkItemRequest, gen.Links](
+			httpClient,
+			baseURL+RunnerServiceUnlinkItemProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UnlinkItem")),
+			connect.WithClientOptions(opts...),
+		),
+		sendPullRequestFailures: connect.NewClient[gen.PullRequestReactionRequest, gen.PullRequestReaction](
+			httpClient,
+			baseURL+RunnerServiceSendPullRequestFailuresProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SendPullRequestFailures")),
+			connect.WithClientOptions(opts...),
+		),
+		importPullRequestReview: connect.NewClient[gen.PullRequestReactionRequest, gen.PullRequestReaction](
+			httpClient,
+			baseURL+RunnerServiceImportPullRequestReviewProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ImportPullRequestReview")),
+			connect.WithClientOptions(opts...),
+		),
+		listReviewComments: connect.NewClient[gen.ListReviewCommentsRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceListReviewCommentsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListReviewComments")),
+			connect.WithClientOptions(opts...),
+		),
+		addReviewComment: connect.NewClient[gen.AddReviewCommentRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceAddReviewCommentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("AddReviewComment")),
+			connect.WithClientOptions(opts...),
+		),
+		editReviewComment: connect.NewClient[gen.EditReviewCommentRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceEditReviewCommentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("EditReviewComment")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteReviewComment: connect.NewClient[gen.DeleteReviewCommentRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceDeleteReviewCommentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("DeleteReviewComment")),
+			connect.WithClientOptions(opts...),
+		),
+		setReviewDisposition: connect.NewClient[gen.SetReviewDispositionRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceSetReviewDispositionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetReviewDisposition")),
+			connect.WithClientOptions(opts...),
+		),
+		setReviewAutoResolve: connect.NewClient[gen.SetReviewAutoResolveRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceSetReviewAutoResolveProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetReviewAutoResolve")),
+			connect.WithClientOptions(opts...),
+		),
+		startReview: connect.NewClient[gen.StartReviewRequest, gen.StartReviewResponse](
+			httpClient,
+			baseURL+RunnerServiceStartReviewProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StartReview")),
+			connect.WithClientOptions(opts...),
+		),
+		addReviewFinding: connect.NewClient[gen.AddReviewFindingRequest, gen.ReviewFinding](
+			httpClient,
+			baseURL+RunnerServiceAddReviewFindingProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("AddReviewFinding")),
+			connect.WithClientOptions(opts...),
+		),
+		listReviewFindings: connect.NewClient[gen.ListReviewFindingsRequest, gen.ReviewFindings](
+			httpClient,
+			baseURL+RunnerServiceListReviewFindingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListReviewFindings")),
+			connect.WithClientOptions(opts...),
+		),
+		setReviewFindingState: connect.NewClient[gen.SetReviewFindingStateRequest, gen.ReviewFinding](
+			httpClient,
+			baseURL+RunnerServiceSetReviewFindingStateProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetReviewFindingState")),
+			connect.WithClientOptions(opts...),
+		),
+		updateReviewRun: connect.NewClient[gen.UpdateReviewRunRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceUpdateReviewRunProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateReviewRun")),
+			connect.WithClientOptions(opts...),
+		),
+		cancelReview: connect.NewClient[gen.CancelReviewRequest, gen.WorkspaceReview](
+			httpClient,
+			baseURL+RunnerServiceCancelReviewProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CancelReview")),
+			connect.WithClientOptions(opts...),
+		),
+		askAgent: connect.NewClient[gen.AskAgentRequest, gen.AgentAsk](
+			httpClient,
+			baseURL+RunnerServiceAskAgentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("AskAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		waitAgentAsk: connect.NewClient[gen.WaitAgentAskRequest, gen.AgentAsk](
+			httpClient,
+			baseURL+RunnerServiceWaitAgentAskProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitAgentAsk")),
+			connect.WithClientOptions(opts...),
+		),
+		listProcesses: connect.NewClient[gen.ListProcessesRequest, gen.ProcessInventory](
+			httpClient,
+			baseURL+RunnerServiceListProcessesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListProcesses")),
+			connect.WithClientOptions(opts...),
+		),
+		stopProcess: connect.NewClient[gen.StopProcessRequest, gen.ProcessInventory](
+			httpClient,
+			baseURL+RunnerServiceStopProcessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StopProcess")),
+			connect.WithClientOptions(opts...),
+		),
+		cleanUpOrphanProcesses: connect.NewClient[gen.CleanUpOrphanProcessesRequest, gen.CleanUpOrphanProcessesResponse](
+			httpClient,
+			baseURL+RunnerServiceCleanUpOrphanProcessesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CleanUpOrphanProcesses")),
+			connect.WithClientOptions(opts...),
+		),
+		getOrchestrationProcess: connect.NewClient[gen.OrchestrationProcessRequest, gen.OrchestrationProcess](
+			httpClient,
+			baseURL+RunnerServiceGetOrchestrationProcessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetOrchestrationProcess")),
+			connect.WithClientOptions(opts...),
+		),
+		explainOrchestrationProcess: connect.NewClient[gen.ExplainOrchestrationProcessRequest, gen.OrchestrationProcessExplanation](
+			httpClient,
+			baseURL+RunnerServiceExplainOrchestrationProcessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ExplainOrchestrationProcess")),
+			connect.WithClientOptions(opts...),
+		),
+		listTurnCheckpoints: connect.NewClient[gen.TurnCheckpointsRequest, gen.TurnCheckpoints](
+			httpClient,
+			baseURL+RunnerServiceListTurnCheckpointsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListTurnCheckpoints")),
+			connect.WithClientOptions(opts...),
+		),
+		listTurnChanges: connect.NewClient[gen.TurnChangesRequest, gen.TurnChanges](
+			httpClient,
+			baseURL+RunnerServiceListTurnChangesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListTurnChanges")),
+			connect.WithClientOptions(opts...),
+		),
+		readTurnDiff: connect.NewClient[gen.TurnDiffRequest, gen.WorkspaceDiff](
+			httpClient,
+			baseURL+RunnerServiceReadTurnDiffProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReadTurnDiff")),
+			connect.WithClientOptions(opts...),
+		),
+		previewRevertCode: connect.NewClient[gen.RevertCodeRequest, gen.RevertCodePreview](
+			httpClient,
+			baseURL+RunnerServicePreviewRevertCodeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PreviewRevertCode")),
+			connect.WithClientOptions(opts...),
+		),
+		revertCode: connect.NewClient[gen.RevertCodeRequest, gen.CodeRevert](
+			httpClient,
+			baseURL+RunnerServiceRevertCodeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RevertCode")),
+			connect.WithClientOptions(opts...),
+		),
+		undoRevertCode: connect.NewClient[gen.UndoRevertCodeRequest, gen.CodeRevert](
+			httpClient,
+			baseURL+RunnerServiceUndoRevertCodeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UndoRevertCode")),
+			connect.WithClientOptions(opts...),
+		),
+		getWorkspaceRuntime: connect.NewClient[gen.WorkspaceRuntimeRequest, gen.WorkspaceRuntime](
+			httpClient,
+			baseURL+RunnerServiceGetWorkspaceRuntimeProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetWorkspaceRuntime")),
+			connect.WithClientOptions(opts...),
+		),
+		approveWorkspaceScripts: connect.NewClient[gen.ApproveWorkspaceScriptsRequest, gen.WorkspaceRuntime](
+			httpClient,
+			baseURL+RunnerServiceApproveWorkspaceScriptsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ApproveWorkspaceScripts")),
+			connect.WithClientOptions(opts...),
+		),
+		startWorkspaceAction: connect.NewClient[gen.WorkspaceActionRequest, gen.WorkspaceActionResult](
+			httpClient,
+			baseURL+RunnerServiceStartWorkspaceActionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StartWorkspaceAction")),
+			connect.WithClientOptions(opts...),
+		),
+		stopWorkspaceAction: connect.NewClient[gen.WorkspaceActionRequest, gen.WorkspaceActionResult](
+			httpClient,
+			baseURL+RunnerServiceStopWorkspaceActionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StopWorkspaceAction")),
+			connect.WithClientOptions(opts...),
+		),
+		runWorkspaceSetup: connect.NewClient[gen.RunWorkspaceSetupRequest, gen.WorkspaceRuntime](
+			httpClient,
+			baseURL+RunnerServiceRunWorkspaceSetupProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RunWorkspaceSetup")),
+			connect.WithClientOptions(opts...),
+		),
+		getWorkspaceRuntimeSettings: connect.NewClient[gen.InfoRequest, gen.WorkspaceRuntimeSettings](
+			httpClient,
+			baseURL+RunnerServiceGetWorkspaceRuntimeSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetWorkspaceRuntimeSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		saveWorkspaceRuntimeSettings: connect.NewClient[gen.WorkspaceRuntimeSettings, gen.WorkspaceRuntimeSettings](
+			httpClient,
+			baseURL+RunnerServiceSaveWorkspaceRuntimeSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceRuntimeSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		getRemoteAccess: connect.NewClient[gen.GetRemoteAccessRequest, gen.RemoteAccess](
+			httpClient,
+			baseURL+RunnerServiceGetRemoteAccessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetRemoteAccess")),
+			connect.WithClientOptions(opts...),
+		),
+		setRemoteAccess: connect.NewClient[gen.SetRemoteAccessRequest, gen.RemoteAccess](
+			httpClient,
+			baseURL+RunnerServiceSetRemoteAccessProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetRemoteAccess")),
+			connect.WithClientOptions(opts...),
+		),
+		beginDevicePairing: connect.NewClient[gen.BeginDevicePairingRequest, gen.DevicePairing](
+			httpClient,
+			baseURL+RunnerServiceBeginDevicePairingProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("BeginDevicePairing")),
+			connect.WithClientOptions(opts...),
+		),
+		getDevicePairing: connect.NewClient[gen.DevicePairingRequest, gen.DevicePairing](
+			httpClient,
+			baseURL+RunnerServiceGetDevicePairingProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetDevicePairing")),
+			connect.WithClientOptions(opts...),
+		),
+		cancelDevicePairing: connect.NewClient[gen.DevicePairingRequest, gen.DevicePairing](
+			httpClient,
+			baseURL+RunnerServiceCancelDevicePairingProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CancelDevicePairing")),
+			connect.WithClientOptions(opts...),
+		),
+		listDevices: connect.NewClient[gen.ListDevicesRequest, gen.ListDevicesResponse](
+			httpClient,
+			baseURL+RunnerServiceListDevicesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListDevices")),
+			connect.WithClientOptions(opts...),
+		),
+		revokeDevice: connect.NewClient[gen.RevokeDeviceRequest, gen.ListDevicesResponse](
+			httpClient,
+			baseURL+RunnerServiceRevokeDeviceProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RevokeDevice")),
+			connect.WithClientOptions(opts...),
+		),
+		getPushSettings: connect.NewClient[gen.GetPushSettingsRequest, gen.PushSettings](
+			httpClient,
+			baseURL+RunnerServiceGetPushSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetPushSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		setPushSettings: connect.NewClient[gen.SetPushSettingsRequest, gen.PushSettings](
+			httpClient,
+			baseURL+RunnerServiceSetPushSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetPushSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		sendTestPush: connect.NewClient[gen.SendTestPushRequest, gen.SendTestPushResponse](
+			httpClient,
+			baseURL+RunnerServiceSendTestPushProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SendTestPush")),
+			connect.WithClientOptions(opts...),
+		),
+		listMissions: connect.NewClient[gen.ListMissionsRequest, gen.ListMissionsResponse](
+			httpClient,
+			baseURL+RunnerServiceListMissionsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListMissions")),
+			connect.WithClientOptions(opts...),
+		),
+		getMission: connect.NewClient[gen.GetMissionRequest, gen.Mission](
+			httpClient,
+			baseURL+RunnerServiceGetMissionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetMission")),
+			connect.WithClientOptions(opts...),
+		),
+		createMission: connect.NewClient[gen.CreateMissionRequest, gen.Mission](
+			httpClient,
+			baseURL+RunnerServiceCreateMissionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CreateMission")),
+			connect.WithClientOptions(opts...),
+		),
+		updateMission: connect.NewClient[gen.UpdateMissionRequest, gen.Mission](
+			httpClient,
+			baseURL+RunnerServiceUpdateMissionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateMission")),
+			connect.WithClientOptions(opts...),
+		),
+		listPromptHistory: connect.NewClient[gen.ListPromptHistoryRequest, gen.PromptHistory](
+			httpClient,
+			baseURL+RunnerServiceListPromptHistoryProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListPromptHistory")),
+			connect.WithClientOptions(opts...),
+		),
+		spawnAgent: connect.NewClient[gen.SpawnAgentRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceSpawnAgentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SpawnAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		listAgentLineage: connect.NewClient[gen.AgentLineageRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceListAgentLineageProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListAgentLineage")),
+			connect.WithClientOptions(opts...),
+		),
+		sendAgentMessage: connect.NewClient[gen.SendAgentMessageRequest, gen.AgentMessageReceipt](
+			httpClient,
+			baseURL+RunnerServiceSendAgentMessageProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SendAgentMessage")),
+			connect.WithClientOptions(opts...),
+		),
+		waitAgents: connect.NewClient[gen.WaitAgentsRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceWaitAgentsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitAgents")),
+			connect.WithClientOptions(opts...),
+		),
+		stopChildAgent: connect.NewClient[gen.StopChildAgentRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceStopChildAgentProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("StopChildAgent")),
+			connect.WithClientOptions(opts...),
+		),
+		reportAgentTask: connect.NewClient[gen.ReportAgentTaskRequest, gen.AgentLineage](
+			httpClient,
+			baseURL+RunnerServiceReportAgentTaskProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReportAgentTask")),
+			connect.WithClientOptions(opts...),
+		),
+		proposePlan: connect.NewClient[gen.ProposePlanRequest, gen.MissionPlan](
+			httpClient,
+			baseURL+RunnerServiceProposePlanProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ProposePlan")),
+			connect.WithClientOptions(opts...),
+		),
+		claimLease: connect.NewClient[gen.ClaimLeaseRequest, gen.MissionLeases](
+			httpClient,
+			baseURL+RunnerServiceClaimLeaseProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ClaimLease")),
+			connect.WithClientOptions(opts...),
+		),
+		releaseLease: connect.NewClient[gen.ReleaseLeaseRequest, gen.MissionLeases](
+			httpClient,
+			baseURL+RunnerServiceReleaseLeaseProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ReleaseLease")),
+			connect.WithClientOptions(opts...),
+		),
+		listLeases: connect.NewClient[gen.LeasesRequest, gen.MissionLeases](
+			httpClient,
+			baseURL+RunnerServiceListLeasesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListLeases")),
+			connect.WithClientOptions(opts...),
+		),
+		listArtifacts: connect.NewClient[gen.ListArtifactsRequest, gen.ListArtifactsResponse](
+			httpClient,
+			baseURL+RunnerServiceListArtifactsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListArtifacts")),
+			connect.WithClientOptions(opts...),
+		),
+		getArtifact: connect.NewClient[gen.GetArtifactRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServiceGetArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		putArtifact: connect.NewClient[gen.PutArtifactRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServicePutArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PutArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		trackArtifactFile: connect.NewClient[gen.TrackArtifactFileRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServiceTrackArtifactFileProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("TrackArtifactFile")),
+			connect.WithClientOptions(opts...),
+		),
+		updateArtifact: connect.NewClient[gen.UpdateArtifactRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServiceUpdateArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteArtifact: connect.NewClient[gen.DeleteArtifactRequest, gen.DeleteArtifactResponse](
+			httpClient,
+			baseURL+RunnerServiceDeleteArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("DeleteArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		retireArtifact: connect.NewClient[gen.RetireArtifactRequest, gen.Artifact](
+			httpClient,
+			baseURL+RunnerServiceRetireArtifactProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RetireArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		saveArtifactToRepository: connect.NewClient[gen.SaveArtifactToRepositoryRequest, gen.SaveArtifactToRepositoryResponse](
+			httpClient,
+			baseURL+RunnerServiceSaveArtifactToRepositoryProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SaveArtifactToRepository")),
+			connect.WithClientOptions(opts...),
+		),
+		createArtifactIssue: connect.NewClient[gen.CreateArtifactIssueRequest, gen.CreateArtifactIssueResponse](
+			httpClient,
+			baseURL+RunnerServiceCreateArtifactIssueProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CreateArtifactIssue")),
+			connect.WithClientOptions(opts...),
+		),
+		getUserActions: connect.NewClient[gen.GetUserActionsRequest, gen.UserActions](
+			httpClient,
+			baseURL+RunnerServiceGetUserActionsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetUserActions")),
+			connect.WithClientOptions(opts...),
+		),
+		initUserActions: connect.NewClient[gen.GetUserActionsRequest, gen.UserActions](
+			httpClient,
+			baseURL+RunnerServiceInitUserActionsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("InitUserActions")),
+			connect.WithClientOptions(opts...),
+		),
+		listHookRuns: connect.NewClient[gen.ListHookRunsRequest, gen.HookRuns](
+			httpClient,
+			baseURL+RunnerServiceListHookRunsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListHookRuns")),
+			connect.WithClientOptions(opts...),
+		),
+		testHook: connect.NewClient[gen.TestHookRequest, gen.HookRun](
+			httpClient,
+			baseURL+RunnerServiceTestHookProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("TestHook")),
+			connect.WithClientOptions(opts...),
+		),
+		postUiRequest: connect.NewClient[gen.UiRequest, gen.UiRequest](
+			httpClient,
+			baseURL+RunnerServicePostUiRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("PostUiRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		waitUiRequest: connect.NewClient[gen.WaitUiRequestRequest, gen.UiRequest](
+			httpClient,
+			baseURL+RunnerServiceWaitUiRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitUiRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		watchUiRequests: connect.NewClient[gen.WatchUiRequestsRequest, gen.UiRequest](
+			httpClient,
+			baseURL+RunnerServiceWatchUiRequestsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WatchUiRequests")),
+			connect.WithClientOptions(opts...),
+		),
+		completeUiRequest: connect.NewClient[gen.CompleteUiRequestRequest, gen.UiRequest](
+			httpClient,
+			baseURL+RunnerServiceCompleteUiRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("CompleteUiRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		getConfigFiles: connect.NewClient[gen.GetConfigFilesRequest, gen.ConfigFiles](
+			httpClient,
+			baseURL+RunnerServiceGetConfigFilesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetConfigFiles")),
+			connect.WithClientOptions(opts...),
+		),
+		updateConfigFile: connect.NewClient[gen.UpdateConfigFileRequest, gen.ConfigFiles](
+			httpClient,
+			baseURL+RunnerServiceUpdateConfigFileProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("UpdateConfigFile")),
+			connect.WithClientOptions(opts...),
+		),
+		listExtensions: connect.NewClient[gen.ListExtensionsRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceListExtensionsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListExtensions")),
+			connect.WithClientOptions(opts...),
+		),
+		approveExtension: connect.NewClient[gen.ApproveExtensionRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceApproveExtensionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ApproveExtension")),
+			connect.WithClientOptions(opts...),
+		),
+		setExtensionEnabled: connect.NewClient[gen.SetExtensionEnabledRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceSetExtensionEnabledProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SetExtensionEnabled")),
+			connect.WithClientOptions(opts...),
+		),
+		removeExtension: connect.NewClient[gen.RemoveExtensionRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceRemoveExtensionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RemoveExtension")),
+			connect.WithClientOptions(opts...),
+		),
+		installExampleExtension: connect.NewClient[gen.InstallExampleExtensionRequest, gen.Extensions](
+			httpClient,
+			baseURL+RunnerServiceInstallExampleExtensionProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("InstallExampleExtension")),
+			connect.WithClientOptions(opts...),
+		),
+		openExtensionPanel: connect.NewClient[gen.OpenExtensionPanelRequest, gen.ExtensionPanelSession](
+			httpClient,
+			baseURL+RunnerServiceOpenExtensionPanelProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("OpenExtensionPanel")),
+			connect.WithClientOptions(opts...),
+		),
+		listWorkspaceRepositories: connect.NewClient[gen.ListWorkspaceRepositoriesRequest, gen.WorkspaceRepositories](
+			httpClient,
+			baseURL+RunnerServiceListWorkspaceRepositoriesProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceRepositories")),
+			connect.WithClientOptions(opts...),
+		),
+		requestRepository: connect.NewClient[gen.RequestRepositoryRequest, gen.RepositoryRequest](
+			httpClient,
+			baseURL+RunnerServiceRequestRepositoryProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RequestRepository")),
+			connect.WithClientOptions(opts...),
+		),
+		waitRepositoryRequest: connect.NewClient[gen.WaitRepositoryRequestRequest, gen.RepositoryRequest](
+			httpClient,
+			baseURL+RunnerServiceWaitRepositoryRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitRepositoryRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		declineRepositoryRequest: connect.NewClient[gen.DeclineRepositoryRequestRequest, gen.RepositoryRequest](
+			httpClient,
+			baseURL+RunnerServiceDeclineRepositoryRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("DeclineRepositoryRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		requestConversationStart: connect.NewClient[gen.RequestConversationStartRequest, gen.ConversationStartRequest](
+			httpClient,
+			baseURL+RunnerServiceRequestConversationStartProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("RequestConversationStart")),
+			connect.WithClientOptions(opts...),
+		),
+		waitConversationStart: connect.NewClient[gen.WaitConversationStartRequest, gen.ConversationStartRequest](
+			httpClient,
+			baseURL+RunnerServiceWaitConversationStartProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WaitConversationStart")),
+			connect.WithClientOptions(opts...),
+		),
+		answerConversationStart: connect.NewClient[gen.AnswerConversationStartRequest, gen.ConversationStartRequest](
+			httpClient,
+			baseURL+RunnerServiceAnswerConversationStartProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("AnswerConversationStart")),
+			connect.WithClientOptions(opts...),
+		),
+		watchBrowser: connect.NewClient[gen.WatchBrowserRequest, gen.BrowserEvent](
+			httpClient,
+			baseURL+RunnerServiceWatchBrowserProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("WatchBrowser")),
+			connect.WithClientOptions(opts...),
+		),
+		controlBrowser: connect.NewClient[gen.ControlBrowserRequest, gen.BrowserState](
+			httpClient,
+			baseURL+RunnerServiceControlBrowserProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ControlBrowser")),
+			connect.WithClientOptions(opts...),
+		),
+		sendBrowserInput: connect.NewClient[gen.BrowserInputRequest, gen.BrowserState](
+			httpClient,
+			baseURL+RunnerServiceSendBrowserInputProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SendBrowserInput")),
+			connect.WithClientOptions(opts...),
+		),
+		decideBrowserRequest: connect.NewClient[gen.DecideBrowserRequestRequest, gen.BrowserState](
+			httpClient,
+			baseURL+RunnerServiceDecideBrowserRequestProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("DecideBrowserRequest")),
+			connect.WithClientOptions(opts...),
+		),
+		getBrowserSettings: connect.NewClient[gen.InfoRequest, gen.BrowserSettings](
+			httpClient,
+			baseURL+RunnerServiceGetBrowserSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("GetBrowserSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		saveBrowserSettings: connect.NewClient[gen.BrowserSettings, gen.BrowserSettings](
+			httpClient,
+			baseURL+RunnerServiceSaveBrowserSettingsProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("SaveBrowserSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		clearBrowserData: connect.NewClient[gen.ClearBrowserDataRequest, gen.BrowserSettings](
+			httpClient,
+			baseURL+RunnerServiceClearBrowserDataProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("ClearBrowserData")),
+			connect.WithClientOptions(opts...),
+		),
+		installBrowser: connect.NewClient[gen.InfoRequest, gen.CommandStatus](
+			httpClient,
+			baseURL+RunnerServiceInstallBrowserProcedure,
+			connect.WithSchema(runnerServiceMethods.ByName("InstallBrowser")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -685,17 +2479,27 @@ type runnerServiceClient struct {
 	listSnippets                 *connect.Client[gen.InfoRequest, gen.SnippetCatalog]
 	getRepositoryCatalog         *connect.Client[gen.GetRepositoryCatalogRequest, gen.RepositoryCatalog]
 	prepareWorkspace             *connect.Client[gen.PrepareWorkspaceRequest, gen.WorkspacePreparation]
+	listRepositoryBranches       *connect.Client[gen.ListRepositoryBranchesRequest, gen.RepositoryBranches]
+	refreshRepositoryIdentity    *connect.Client[gen.RefreshRepositoryIdentityRequest, gen.RepositoryIdentityRefresh]
 	version                      *connect.Client[gen.VersionRequest, gen.VersionResponse]
 	getRunnerSettings            *connect.Client[gen.InfoRequest, gen.RunnerSettings]
 	saveRunnerSettings           *connect.Client[gen.RunnerSettings, gen.RunnerSettings]
 	setModelPrice                *connect.Client[gen.SetModelPriceRequest, gen.RunnerSettings]
+	getClaudeAuth                *connect.Client[gen.InfoRequest, gen.ClaudeAuth]
+	setClaudeApiKey              *connect.Client[gen.SetClaudeApiKeyRequest, gen.ClaudeAuth]
+	listThemes                   *connect.Client[gen.ListThemesRequest, gen.ThemeFolder]
+	createTheme                  *connect.Client[gen.CreateThemeRequest, gen.CreateThemeResponse]
 	info                         *connect.Client[gen.InfoRequest, gen.InfoResponse]
+	getProviderAvailability      *connect.Client[gen.ProviderAvailabilityRequest, gen.ProviderAvailability]
+	saveAcpAgent                 *connect.Client[gen.SaveAcpAgentRequest, gen.ProviderAvailability]
+	removeAcpAgent               *connect.Client[gen.RemoveAcpAgentRequest, gen.ProviderAvailability]
 	getTelemetry                 *connect.Client[gen.TelemetryRequest, gen.TelemetryReport]
 	renameCollection             *connect.Client[gen.RenameCollectionRequest, gen.CollectionResponse]
 	addSubscription              *connect.Client[gen.AddSubscriptionRequest, gen.SubscriptionEnrollment]
 	getSubscriptionEnrollment    *connect.Client[gen.SubscriptionEnrollmentRequest, gen.SubscriptionEnrollment]
 	cancelSubscriptionEnrollment *connect.Client[gen.SubscriptionEnrollmentRequest, gen.SubscriptionEnrollment]
 	refreshSubscription          *connect.Client[gen.RefreshSubscriptionRequest, gen.Profile]
+	removeSubscription           *connect.Client[gen.RemoveSubscriptionRequest, gen.InfoResponse]
 	getGitHubConnection          *connect.Client[gen.GetGitHubConnectionRequest, gen.GitHubConnection]
 	configureGitHubApp           *connect.Client[gen.ConfigureGitHubAppRequest, gen.GitHubConnection]
 	connectGitHubPersonalToken   *connect.Client[gen.ConnectGitHubPersonalTokenRequest, gen.GitHubConnection]
@@ -709,26 +2513,47 @@ type runnerServiceClient struct {
 	listGitHubRepositories       *connect.Client[gen.ListGitHubRepositoriesRequest, gen.ListGitHubRepositoriesResponse]
 	importGitHubRepository       *connect.Client[gen.ImportGitHubRepositoryRequest, gen.ImportGitHubRepositoryResponse]
 	listGitHubItems              *connect.Client[gen.ListGitHubItemsRequest, gen.ListGitHubItemsResponse]
+	searchItems                  *connect.Client[gen.SearchItemsRequest, gen.ItemPage]
+	getItem                      *connect.Client[gen.ItemRequest, gen.ItemDetail]
+	resolveItemUrl               *connect.Client[gen.ResolveItemUrlRequest, gen.ItemRef]
+	findItemWorkspaces           *connect.Client[gen.ItemRequest, gen.ItemWorkspaces]
 	addLocalRepository           *connect.Client[gen.AddLocalRepositoryRequest, gen.AddLocalRepositoryResponse]
 	listRepositories             *connect.Client[gen.ListRepositoriesRequest, gen.ListRepositoriesResponse]
 	removeRepository             *connect.Client[gen.RemoveRepositoryRequest, gen.RepositoryDiscovery]
+	listRepositoryHomes          *connect.Client[gen.ListRepositoryHomesRequest, gen.RepositoryHomes]
+	setRepositoryHome            *connect.Client[gen.SetRepositoryHomeRequest, gen.RepositoryHome]
+	openRepositoryHome           *connect.Client[gen.OpenRepositoryHomeRequest, gen.OpenRepositoryHomeResponse]
+	updateRepositoryHome         *connect.Client[gen.UpdateRepositoryHomeRequest, gen.RepositoryHomeUpdate]
 	createCollection             *connect.Client[gen.CreateCollectionRequest, gen.CollectionResponse]
 	addCollectionRepositories    *connect.Client[gen.AddCollectionRepositoriesRequest, gen.CollectionResponse]
 	getCollection                *connect.Client[gen.CollectionRequest, gen.CollectionResponse]
 	listCollections              *connect.Client[gen.ListCollectionsRequest, gen.ListCollectionsResponse]
+	arrangeWorkspaces            *connect.Client[gen.ArrangeWorkspacesRequest, gen.ListCollectionsResponse]
 	archiveCollection            *connect.Client[gen.CollectionRequest, gen.CollectionResponse]
 	reconcileCollection          *connect.Client[gen.ReconcileCollectionRequest, gen.CollectionResponse]
+	getOwnership                 *connect.Client[gen.OwnershipRequest, gen.Ownership]
+	resolveOwnership             *connect.Client[gen.ResolveOwnershipRequest, gen.Ownership]
 	openSession                  *connect.Client[gen.OpenSessionRequest, gen.SessionResponse]
 	openAssistant                *connect.Client[gen.OpenAssistantRequest, gen.SessionResponse]
 	renameConversation           *connect.Client[gen.RenameConversationRequest, gen.SessionResponse]
+	pinConversation              *connect.Client[gen.PinConversationRequest, gen.SessionResponse]
+	archiveConversation          *connect.Client[gen.ArchiveConversationRequest, gen.SessionResponse]
 	listWorkspaceChanges         *connect.Client[gen.WorkspaceChangesRequest, gen.WorkspaceChanges]
 	readWorkspaceDiff            *connect.Client[gen.WorkspaceDiffRequest, gen.WorkspaceDiff]
 	readWorkspaceFile            *connect.Client[gen.WorkspaceFileRequest, gen.WorkspaceFile]
 	saveWorkspaceFile            *connect.Client[gen.SaveWorkspaceFileRequest, gen.WorkspaceFile]
+	searchWorkspaceFiles         *connect.Client[gen.SearchWorkspaceFilesRequest, gen.WorkspaceFileSearch]
+	resolveWorkspacePath         *connect.Client[gen.ResolveWorkspacePathRequest, gen.WorkspacePathResolution]
 	listHistory                  *connect.Client[gen.ListHistoryRequest, gen.ListHistoryResponse]
 	resumeSession                *connect.Client[gen.ResumeSessionRequest, gen.SessionResponse]
+	restartWithPermission        *connect.Client[gen.RestartWithPermissionRequest, gen.SessionResponse]
+	restartWithModel             *connect.Client[gen.RestartWithModelRequest, gen.SessionResponse]
+	giveBrowser                  *connect.Client[gen.GiveBrowserRequest, gen.SessionResponse]
+	switchSubscription           *connect.Client[gen.SwitchSubscriptionRequest, gen.SessionResponse]
+	setSessionRotation           *connect.Client[gen.SetSessionRotationRequest, gen.SessionResponse]
 	getSession                   *connect.Client[gen.SessionRequest, gen.SessionResponse]
 	apply                        *connect.Client[gen.ApplyRequest, gen.Receipt]
+	readAttachment               *connect.Client[gen.ReadAttachmentRequest, gen.AttachmentContent]
 	closeSession                 *connect.Client[gen.SessionRequest, gen.SessionResponse]
 	stopSessionResources         *connect.Client[gen.SessionRequest, gen.SessionResponse]
 	deleteConversation           *connect.Client[gen.DeleteConversationRequest, gen.DeleteConversationResponse]
@@ -736,15 +2561,134 @@ type runnerServiceClient struct {
 	deleteWorkspace              *connect.Client[gen.DeleteWorkspaceRequest, gen.CollectionResponse]
 	continueSession              *connect.Client[gen.ContinueSessionRequest, gen.SessionResponse]
 	watchEvents                  *connect.Client[gen.WatchEventsRequest, gen.JournalEvent]
+	readSessionTail              *connect.Client[gen.ReadSessionTailRequest, gen.ReadSessionTailResponse]
 	startCommand                 *connect.Client[gen.StartCommandRequest, gen.CommandStatus]
 	registerPipe                 *connect.Client[gen.RegisterPipeRequest, gen.CommandStatus]
 	publish                      *connect.Client[gen.PublishRequest, gen.CommandStatus]
 	finishPipe                   *connect.Client[gen.FinishPipeRequest, gen.CommandStatus]
 	listCommands                 *connect.Client[gen.ListCommandsRequest, gen.ListCommandsResponse]
+	claimCommandShare            *connect.Client[gen.CommandRequest, gen.ClaimCommandShareResponse]
 	readCommand                  *connect.Client[gen.ReadCommandRequest, gen.ReadCommandResponse]
 	waitCommand                  *connect.Client[gen.CommandRequest, gen.CommandStatus]
 	cancelCommand                *connect.Client[gen.CommandRequest, gen.CommandStatus]
+	backgroundCommand            *connect.Client[gen.CommandRequest, gen.CommandStatus]
+	followPipe                   *connect.Client[gen.FollowPipeRequest, gen.FollowPipeResponse]
 	watchOutput                  *connect.Client[gen.WatchOutputRequest, gen.OutputEvent]
+	openTerminal                 *connect.Client[gen.OpenTerminalRequest, gen.TerminalStatus]
+	listTerminals                *connect.Client[gen.ListTerminalsRequest, gen.ListTerminalsResponse]
+	watchTerminal                *connect.Client[gen.WatchTerminalRequest, gen.TerminalEvent]
+	writeTerminal                *connect.Client[gen.WriteTerminalRequest, gen.TerminalStatus]
+	resizeTerminal               *connect.Client[gen.ResizeTerminalRequest, gen.TerminalStatus]
+	closeTerminal                *connect.Client[gen.TerminalRequest, gen.TerminalStatus]
+	restartRunner                *connect.Client[gen.RestartRunnerRequest, gen.RestartRunnerResponse]
+	commitWorkspaceChanges       *connect.Client[gen.CommitWorkspaceChangesRequest, gen.CommitWorkspaceChangesResponse]
+	pushWorkspaceBranch          *connect.Client[gen.PushWorkspaceBranchRequest, gen.PushWorkspaceBranchResponse]
+	createPullRequest            *connect.Client[gen.CreatePullRequestRequest, gen.PullRequestStatus]
+	getPullRequest               *connect.Client[gen.GetPullRequestRequest, gen.PullRequestStatus]
+	mergePullRequest             *connect.Client[gen.MergePullRequestRequest, gen.PullRequestStatus]
+	listWorkspaceGitSummaries    *connect.Client[gen.WorkspaceGitSummariesRequest, gen.WorkspaceGitSummaries]
+	listLinks                    *connect.Client[gen.ListLinksRequest, gen.Links]
+	linkItem                     *connect.Client[gen.LinkItemRequest, gen.Links]
+	unlinkItem                   *connect.Client[gen.UnlinkItemRequest, gen.Links]
+	sendPullRequestFailures      *connect.Client[gen.PullRequestReactionRequest, gen.PullRequestReaction]
+	importPullRequestReview      *connect.Client[gen.PullRequestReactionRequest, gen.PullRequestReaction]
+	listReviewComments           *connect.Client[gen.ListReviewCommentsRequest, gen.WorkspaceReview]
+	addReviewComment             *connect.Client[gen.AddReviewCommentRequest, gen.WorkspaceReview]
+	editReviewComment            *connect.Client[gen.EditReviewCommentRequest, gen.WorkspaceReview]
+	deleteReviewComment          *connect.Client[gen.DeleteReviewCommentRequest, gen.WorkspaceReview]
+	setReviewDisposition         *connect.Client[gen.SetReviewDispositionRequest, gen.WorkspaceReview]
+	setReviewAutoResolve         *connect.Client[gen.SetReviewAutoResolveRequest, gen.WorkspaceReview]
+	startReview                  *connect.Client[gen.StartReviewRequest, gen.StartReviewResponse]
+	addReviewFinding             *connect.Client[gen.AddReviewFindingRequest, gen.ReviewFinding]
+	listReviewFindings           *connect.Client[gen.ListReviewFindingsRequest, gen.ReviewFindings]
+	setReviewFindingState        *connect.Client[gen.SetReviewFindingStateRequest, gen.ReviewFinding]
+	updateReviewRun              *connect.Client[gen.UpdateReviewRunRequest, gen.WorkspaceReview]
+	cancelReview                 *connect.Client[gen.CancelReviewRequest, gen.WorkspaceReview]
+	askAgent                     *connect.Client[gen.AskAgentRequest, gen.AgentAsk]
+	waitAgentAsk                 *connect.Client[gen.WaitAgentAskRequest, gen.AgentAsk]
+	listProcesses                *connect.Client[gen.ListProcessesRequest, gen.ProcessInventory]
+	stopProcess                  *connect.Client[gen.StopProcessRequest, gen.ProcessInventory]
+	cleanUpOrphanProcesses       *connect.Client[gen.CleanUpOrphanProcessesRequest, gen.CleanUpOrphanProcessesResponse]
+	getOrchestrationProcess      *connect.Client[gen.OrchestrationProcessRequest, gen.OrchestrationProcess]
+	explainOrchestrationProcess  *connect.Client[gen.ExplainOrchestrationProcessRequest, gen.OrchestrationProcessExplanation]
+	listTurnCheckpoints          *connect.Client[gen.TurnCheckpointsRequest, gen.TurnCheckpoints]
+	listTurnChanges              *connect.Client[gen.TurnChangesRequest, gen.TurnChanges]
+	readTurnDiff                 *connect.Client[gen.TurnDiffRequest, gen.WorkspaceDiff]
+	previewRevertCode            *connect.Client[gen.RevertCodeRequest, gen.RevertCodePreview]
+	revertCode                   *connect.Client[gen.RevertCodeRequest, gen.CodeRevert]
+	undoRevertCode               *connect.Client[gen.UndoRevertCodeRequest, gen.CodeRevert]
+	getWorkspaceRuntime          *connect.Client[gen.WorkspaceRuntimeRequest, gen.WorkspaceRuntime]
+	approveWorkspaceScripts      *connect.Client[gen.ApproveWorkspaceScriptsRequest, gen.WorkspaceRuntime]
+	startWorkspaceAction         *connect.Client[gen.WorkspaceActionRequest, gen.WorkspaceActionResult]
+	stopWorkspaceAction          *connect.Client[gen.WorkspaceActionRequest, gen.WorkspaceActionResult]
+	runWorkspaceSetup            *connect.Client[gen.RunWorkspaceSetupRequest, gen.WorkspaceRuntime]
+	getWorkspaceRuntimeSettings  *connect.Client[gen.InfoRequest, gen.WorkspaceRuntimeSettings]
+	saveWorkspaceRuntimeSettings *connect.Client[gen.WorkspaceRuntimeSettings, gen.WorkspaceRuntimeSettings]
+	getRemoteAccess              *connect.Client[gen.GetRemoteAccessRequest, gen.RemoteAccess]
+	setRemoteAccess              *connect.Client[gen.SetRemoteAccessRequest, gen.RemoteAccess]
+	beginDevicePairing           *connect.Client[gen.BeginDevicePairingRequest, gen.DevicePairing]
+	getDevicePairing             *connect.Client[gen.DevicePairingRequest, gen.DevicePairing]
+	cancelDevicePairing          *connect.Client[gen.DevicePairingRequest, gen.DevicePairing]
+	listDevices                  *connect.Client[gen.ListDevicesRequest, gen.ListDevicesResponse]
+	revokeDevice                 *connect.Client[gen.RevokeDeviceRequest, gen.ListDevicesResponse]
+	getPushSettings              *connect.Client[gen.GetPushSettingsRequest, gen.PushSettings]
+	setPushSettings              *connect.Client[gen.SetPushSettingsRequest, gen.PushSettings]
+	sendTestPush                 *connect.Client[gen.SendTestPushRequest, gen.SendTestPushResponse]
+	listMissions                 *connect.Client[gen.ListMissionsRequest, gen.ListMissionsResponse]
+	getMission                   *connect.Client[gen.GetMissionRequest, gen.Mission]
+	createMission                *connect.Client[gen.CreateMissionRequest, gen.Mission]
+	updateMission                *connect.Client[gen.UpdateMissionRequest, gen.Mission]
+	listPromptHistory            *connect.Client[gen.ListPromptHistoryRequest, gen.PromptHistory]
+	spawnAgent                   *connect.Client[gen.SpawnAgentRequest, gen.AgentLineage]
+	listAgentLineage             *connect.Client[gen.AgentLineageRequest, gen.AgentLineage]
+	sendAgentMessage             *connect.Client[gen.SendAgentMessageRequest, gen.AgentMessageReceipt]
+	waitAgents                   *connect.Client[gen.WaitAgentsRequest, gen.AgentLineage]
+	stopChildAgent               *connect.Client[gen.StopChildAgentRequest, gen.AgentLineage]
+	reportAgentTask              *connect.Client[gen.ReportAgentTaskRequest, gen.AgentLineage]
+	proposePlan                  *connect.Client[gen.ProposePlanRequest, gen.MissionPlan]
+	claimLease                   *connect.Client[gen.ClaimLeaseRequest, gen.MissionLeases]
+	releaseLease                 *connect.Client[gen.ReleaseLeaseRequest, gen.MissionLeases]
+	listLeases                   *connect.Client[gen.LeasesRequest, gen.MissionLeases]
+	listArtifacts                *connect.Client[gen.ListArtifactsRequest, gen.ListArtifactsResponse]
+	getArtifact                  *connect.Client[gen.GetArtifactRequest, gen.Artifact]
+	putArtifact                  *connect.Client[gen.PutArtifactRequest, gen.Artifact]
+	trackArtifactFile            *connect.Client[gen.TrackArtifactFileRequest, gen.Artifact]
+	updateArtifact               *connect.Client[gen.UpdateArtifactRequest, gen.Artifact]
+	deleteArtifact               *connect.Client[gen.DeleteArtifactRequest, gen.DeleteArtifactResponse]
+	retireArtifact               *connect.Client[gen.RetireArtifactRequest, gen.Artifact]
+	saveArtifactToRepository     *connect.Client[gen.SaveArtifactToRepositoryRequest, gen.SaveArtifactToRepositoryResponse]
+	createArtifactIssue          *connect.Client[gen.CreateArtifactIssueRequest, gen.CreateArtifactIssueResponse]
+	getUserActions               *connect.Client[gen.GetUserActionsRequest, gen.UserActions]
+	initUserActions              *connect.Client[gen.GetUserActionsRequest, gen.UserActions]
+	listHookRuns                 *connect.Client[gen.ListHookRunsRequest, gen.HookRuns]
+	testHook                     *connect.Client[gen.TestHookRequest, gen.HookRun]
+	postUiRequest                *connect.Client[gen.UiRequest, gen.UiRequest]
+	waitUiRequest                *connect.Client[gen.WaitUiRequestRequest, gen.UiRequest]
+	watchUiRequests              *connect.Client[gen.WatchUiRequestsRequest, gen.UiRequest]
+	completeUiRequest            *connect.Client[gen.CompleteUiRequestRequest, gen.UiRequest]
+	getConfigFiles               *connect.Client[gen.GetConfigFilesRequest, gen.ConfigFiles]
+	updateConfigFile             *connect.Client[gen.UpdateConfigFileRequest, gen.ConfigFiles]
+	listExtensions               *connect.Client[gen.ListExtensionsRequest, gen.Extensions]
+	approveExtension             *connect.Client[gen.ApproveExtensionRequest, gen.Extensions]
+	setExtensionEnabled          *connect.Client[gen.SetExtensionEnabledRequest, gen.Extensions]
+	removeExtension              *connect.Client[gen.RemoveExtensionRequest, gen.Extensions]
+	installExampleExtension      *connect.Client[gen.InstallExampleExtensionRequest, gen.Extensions]
+	openExtensionPanel           *connect.Client[gen.OpenExtensionPanelRequest, gen.ExtensionPanelSession]
+	listWorkspaceRepositories    *connect.Client[gen.ListWorkspaceRepositoriesRequest, gen.WorkspaceRepositories]
+	requestRepository            *connect.Client[gen.RequestRepositoryRequest, gen.RepositoryRequest]
+	waitRepositoryRequest        *connect.Client[gen.WaitRepositoryRequestRequest, gen.RepositoryRequest]
+	declineRepositoryRequest     *connect.Client[gen.DeclineRepositoryRequestRequest, gen.RepositoryRequest]
+	requestConversationStart     *connect.Client[gen.RequestConversationStartRequest, gen.ConversationStartRequest]
+	waitConversationStart        *connect.Client[gen.WaitConversationStartRequest, gen.ConversationStartRequest]
+	answerConversationStart      *connect.Client[gen.AnswerConversationStartRequest, gen.ConversationStartRequest]
+	watchBrowser                 *connect.Client[gen.WatchBrowserRequest, gen.BrowserEvent]
+	controlBrowser               *connect.Client[gen.ControlBrowserRequest, gen.BrowserState]
+	sendBrowserInput             *connect.Client[gen.BrowserInputRequest, gen.BrowserState]
+	decideBrowserRequest         *connect.Client[gen.DecideBrowserRequestRequest, gen.BrowserState]
+	getBrowserSettings           *connect.Client[gen.InfoRequest, gen.BrowserSettings]
+	saveBrowserSettings          *connect.Client[gen.BrowserSettings, gen.BrowserSettings]
+	clearBrowserData             *connect.Client[gen.ClearBrowserDataRequest, gen.BrowserSettings]
+	installBrowser               *connect.Client[gen.InfoRequest, gen.CommandStatus]
 }
 
 // ListSnippets calls lazybox.bench.v1.RunnerService.ListSnippets.
@@ -760,6 +2704,16 @@ func (c *runnerServiceClient) GetRepositoryCatalog(ctx context.Context, req *con
 // PrepareWorkspace calls lazybox.bench.v1.RunnerService.PrepareWorkspace.
 func (c *runnerServiceClient) PrepareWorkspace(ctx context.Context, req *connect.Request[gen.PrepareWorkspaceRequest]) (*connect.ServerStreamForClient[gen.WorkspacePreparation], error) {
 	return c.prepareWorkspace.CallServerStream(ctx, req)
+}
+
+// ListRepositoryBranches calls lazybox.bench.v1.RunnerService.ListRepositoryBranches.
+func (c *runnerServiceClient) ListRepositoryBranches(ctx context.Context, req *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error) {
+	return c.listRepositoryBranches.CallUnary(ctx, req)
+}
+
+// RefreshRepositoryIdentity calls lazybox.bench.v1.RunnerService.RefreshRepositoryIdentity.
+func (c *runnerServiceClient) RefreshRepositoryIdentity(ctx context.Context, req *connect.Request[gen.RefreshRepositoryIdentityRequest]) (*connect.Response[gen.RepositoryIdentityRefresh], error) {
+	return c.refreshRepositoryIdentity.CallUnary(ctx, req)
 }
 
 // Version calls lazybox.bench.v1.RunnerService.Version.
@@ -782,9 +2736,44 @@ func (c *runnerServiceClient) SetModelPrice(ctx context.Context, req *connect.Re
 	return c.setModelPrice.CallUnary(ctx, req)
 }
 
+// GetClaudeAuth calls lazybox.bench.v1.RunnerService.GetClaudeAuth.
+func (c *runnerServiceClient) GetClaudeAuth(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.ClaudeAuth], error) {
+	return c.getClaudeAuth.CallUnary(ctx, req)
+}
+
+// SetClaudeApiKey calls lazybox.bench.v1.RunnerService.SetClaudeApiKey.
+func (c *runnerServiceClient) SetClaudeApiKey(ctx context.Context, req *connect.Request[gen.SetClaudeApiKeyRequest]) (*connect.Response[gen.ClaudeAuth], error) {
+	return c.setClaudeApiKey.CallUnary(ctx, req)
+}
+
+// ListThemes calls lazybox.bench.v1.RunnerService.ListThemes.
+func (c *runnerServiceClient) ListThemes(ctx context.Context, req *connect.Request[gen.ListThemesRequest]) (*connect.Response[gen.ThemeFolder], error) {
+	return c.listThemes.CallUnary(ctx, req)
+}
+
+// CreateTheme calls lazybox.bench.v1.RunnerService.CreateTheme.
+func (c *runnerServiceClient) CreateTheme(ctx context.Context, req *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error) {
+	return c.createTheme.CallUnary(ctx, req)
+}
+
 // Info calls lazybox.bench.v1.RunnerService.Info.
 func (c *runnerServiceClient) Info(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error) {
 	return c.info.CallUnary(ctx, req)
+}
+
+// GetProviderAvailability calls lazybox.bench.v1.RunnerService.GetProviderAvailability.
+func (c *runnerServiceClient) GetProviderAvailability(ctx context.Context, req *connect.Request[gen.ProviderAvailabilityRequest]) (*connect.Response[gen.ProviderAvailability], error) {
+	return c.getProviderAvailability.CallUnary(ctx, req)
+}
+
+// SaveAcpAgent calls lazybox.bench.v1.RunnerService.SaveAcpAgent.
+func (c *runnerServiceClient) SaveAcpAgent(ctx context.Context, req *connect.Request[gen.SaveAcpAgentRequest]) (*connect.Response[gen.ProviderAvailability], error) {
+	return c.saveAcpAgent.CallUnary(ctx, req)
+}
+
+// RemoveAcpAgent calls lazybox.bench.v1.RunnerService.RemoveAcpAgent.
+func (c *runnerServiceClient) RemoveAcpAgent(ctx context.Context, req *connect.Request[gen.RemoveAcpAgentRequest]) (*connect.Response[gen.ProviderAvailability], error) {
+	return c.removeAcpAgent.CallUnary(ctx, req)
 }
 
 // GetTelemetry calls lazybox.bench.v1.RunnerService.GetTelemetry.
@@ -815,6 +2804,11 @@ func (c *runnerServiceClient) CancelSubscriptionEnrollment(ctx context.Context, 
 // RefreshSubscription calls lazybox.bench.v1.RunnerService.RefreshSubscription.
 func (c *runnerServiceClient) RefreshSubscription(ctx context.Context, req *connect.Request[gen.RefreshSubscriptionRequest]) (*connect.Response[gen.Profile], error) {
 	return c.refreshSubscription.CallUnary(ctx, req)
+}
+
+// RemoveSubscription calls lazybox.bench.v1.RunnerService.RemoveSubscription.
+func (c *runnerServiceClient) RemoveSubscription(ctx context.Context, req *connect.Request[gen.RemoveSubscriptionRequest]) (*connect.Response[gen.InfoResponse], error) {
+	return c.removeSubscription.CallUnary(ctx, req)
 }
 
 // GetGitHubConnection calls lazybox.bench.v1.RunnerService.GetGitHubConnection.
@@ -882,6 +2876,26 @@ func (c *runnerServiceClient) ListGitHubItems(ctx context.Context, req *connect.
 	return c.listGitHubItems.CallUnary(ctx, req)
 }
 
+// SearchItems calls lazybox.bench.v1.RunnerService.SearchItems.
+func (c *runnerServiceClient) SearchItems(ctx context.Context, req *connect.Request[gen.SearchItemsRequest]) (*connect.Response[gen.ItemPage], error) {
+	return c.searchItems.CallUnary(ctx, req)
+}
+
+// GetItem calls lazybox.bench.v1.RunnerService.GetItem.
+func (c *runnerServiceClient) GetItem(ctx context.Context, req *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemDetail], error) {
+	return c.getItem.CallUnary(ctx, req)
+}
+
+// ResolveItemUrl calls lazybox.bench.v1.RunnerService.ResolveItemUrl.
+func (c *runnerServiceClient) ResolveItemUrl(ctx context.Context, req *connect.Request[gen.ResolveItemUrlRequest]) (*connect.Response[gen.ItemRef], error) {
+	return c.resolveItemUrl.CallUnary(ctx, req)
+}
+
+// FindItemWorkspaces calls lazybox.bench.v1.RunnerService.FindItemWorkspaces.
+func (c *runnerServiceClient) FindItemWorkspaces(ctx context.Context, req *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemWorkspaces], error) {
+	return c.findItemWorkspaces.CallUnary(ctx, req)
+}
+
 // AddLocalRepository calls lazybox.bench.v1.RunnerService.AddLocalRepository.
 func (c *runnerServiceClient) AddLocalRepository(ctx context.Context, req *connect.Request[gen.AddLocalRepositoryRequest]) (*connect.Response[gen.AddLocalRepositoryResponse], error) {
 	return c.addLocalRepository.CallUnary(ctx, req)
@@ -895,6 +2909,26 @@ func (c *runnerServiceClient) ListRepositories(ctx context.Context, req *connect
 // RemoveRepository calls lazybox.bench.v1.RunnerService.RemoveRepository.
 func (c *runnerServiceClient) RemoveRepository(ctx context.Context, req *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error) {
 	return c.removeRepository.CallUnary(ctx, req)
+}
+
+// ListRepositoryHomes calls lazybox.bench.v1.RunnerService.ListRepositoryHomes.
+func (c *runnerServiceClient) ListRepositoryHomes(ctx context.Context, req *connect.Request[gen.ListRepositoryHomesRequest]) (*connect.Response[gen.RepositoryHomes], error) {
+	return c.listRepositoryHomes.CallUnary(ctx, req)
+}
+
+// SetRepositoryHome calls lazybox.bench.v1.RunnerService.SetRepositoryHome.
+func (c *runnerServiceClient) SetRepositoryHome(ctx context.Context, req *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error) {
+	return c.setRepositoryHome.CallUnary(ctx, req)
+}
+
+// OpenRepositoryHome calls lazybox.bench.v1.RunnerService.OpenRepositoryHome.
+func (c *runnerServiceClient) OpenRepositoryHome(ctx context.Context, req *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error) {
+	return c.openRepositoryHome.CallUnary(ctx, req)
+}
+
+// UpdateRepositoryHome calls lazybox.bench.v1.RunnerService.UpdateRepositoryHome.
+func (c *runnerServiceClient) UpdateRepositoryHome(ctx context.Context, req *connect.Request[gen.UpdateRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHomeUpdate], error) {
+	return c.updateRepositoryHome.CallUnary(ctx, req)
 }
 
 // CreateCollection calls lazybox.bench.v1.RunnerService.CreateCollection.
@@ -917,6 +2951,11 @@ func (c *runnerServiceClient) ListCollections(ctx context.Context, req *connect.
 	return c.listCollections.CallUnary(ctx, req)
 }
 
+// ArrangeWorkspaces calls lazybox.bench.v1.RunnerService.ArrangeWorkspaces.
+func (c *runnerServiceClient) ArrangeWorkspaces(ctx context.Context, req *connect.Request[gen.ArrangeWorkspacesRequest]) (*connect.Response[gen.ListCollectionsResponse], error) {
+	return c.arrangeWorkspaces.CallUnary(ctx, req)
+}
+
 // ArchiveCollection calls lazybox.bench.v1.RunnerService.ArchiveCollection.
 func (c *runnerServiceClient) ArchiveCollection(ctx context.Context, req *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error) {
 	return c.archiveCollection.CallUnary(ctx, req)
@@ -925,6 +2964,16 @@ func (c *runnerServiceClient) ArchiveCollection(ctx context.Context, req *connec
 // ReconcileCollection calls lazybox.bench.v1.RunnerService.ReconcileCollection.
 func (c *runnerServiceClient) ReconcileCollection(ctx context.Context, req *connect.Request[gen.ReconcileCollectionRequest]) (*connect.Response[gen.CollectionResponse], error) {
 	return c.reconcileCollection.CallUnary(ctx, req)
+}
+
+// GetOwnership calls lazybox.bench.v1.RunnerService.GetOwnership.
+func (c *runnerServiceClient) GetOwnership(ctx context.Context, req *connect.Request[gen.OwnershipRequest]) (*connect.Response[gen.Ownership], error) {
+	return c.getOwnership.CallUnary(ctx, req)
+}
+
+// ResolveOwnership calls lazybox.bench.v1.RunnerService.ResolveOwnership.
+func (c *runnerServiceClient) ResolveOwnership(ctx context.Context, req *connect.Request[gen.ResolveOwnershipRequest]) (*connect.Response[gen.Ownership], error) {
+	return c.resolveOwnership.CallUnary(ctx, req)
 }
 
 // OpenSession calls lazybox.bench.v1.RunnerService.OpenSession.
@@ -940,6 +2989,16 @@ func (c *runnerServiceClient) OpenAssistant(ctx context.Context, req *connect.Re
 // RenameConversation calls lazybox.bench.v1.RunnerService.RenameConversation.
 func (c *runnerServiceClient) RenameConversation(ctx context.Context, req *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return c.renameConversation.CallUnary(ctx, req)
+}
+
+// PinConversation calls lazybox.bench.v1.RunnerService.PinConversation.
+func (c *runnerServiceClient) PinConversation(ctx context.Context, req *connect.Request[gen.PinConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.pinConversation.CallUnary(ctx, req)
+}
+
+// ArchiveConversation calls lazybox.bench.v1.RunnerService.ArchiveConversation.
+func (c *runnerServiceClient) ArchiveConversation(ctx context.Context, req *connect.Request[gen.ArchiveConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.archiveConversation.CallUnary(ctx, req)
 }
 
 // ListWorkspaceChanges calls lazybox.bench.v1.RunnerService.ListWorkspaceChanges.
@@ -962,6 +3021,16 @@ func (c *runnerServiceClient) SaveWorkspaceFile(ctx context.Context, req *connec
 	return c.saveWorkspaceFile.CallUnary(ctx, req)
 }
 
+// SearchWorkspaceFiles calls lazybox.bench.v1.RunnerService.SearchWorkspaceFiles.
+func (c *runnerServiceClient) SearchWorkspaceFiles(ctx context.Context, req *connect.Request[gen.SearchWorkspaceFilesRequest]) (*connect.Response[gen.WorkspaceFileSearch], error) {
+	return c.searchWorkspaceFiles.CallUnary(ctx, req)
+}
+
+// ResolveWorkspacePath calls lazybox.bench.v1.RunnerService.ResolveWorkspacePath.
+func (c *runnerServiceClient) ResolveWorkspacePath(ctx context.Context, req *connect.Request[gen.ResolveWorkspacePathRequest]) (*connect.Response[gen.WorkspacePathResolution], error) {
+	return c.resolveWorkspacePath.CallUnary(ctx, req)
+}
+
 // ListHistory calls lazybox.bench.v1.RunnerService.ListHistory.
 func (c *runnerServiceClient) ListHistory(ctx context.Context, req *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error) {
 	return c.listHistory.CallUnary(ctx, req)
@@ -972,6 +3041,31 @@ func (c *runnerServiceClient) ResumeSession(ctx context.Context, req *connect.Re
 	return c.resumeSession.CallUnary(ctx, req)
 }
 
+// RestartWithPermission calls lazybox.bench.v1.RunnerService.RestartWithPermission.
+func (c *runnerServiceClient) RestartWithPermission(ctx context.Context, req *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.restartWithPermission.CallUnary(ctx, req)
+}
+
+// RestartWithModel calls lazybox.bench.v1.RunnerService.RestartWithModel.
+func (c *runnerServiceClient) RestartWithModel(ctx context.Context, req *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.restartWithModel.CallUnary(ctx, req)
+}
+
+// GiveBrowser calls lazybox.bench.v1.RunnerService.GiveBrowser.
+func (c *runnerServiceClient) GiveBrowser(ctx context.Context, req *connect.Request[gen.GiveBrowserRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.giveBrowser.CallUnary(ctx, req)
+}
+
+// SwitchSubscription calls lazybox.bench.v1.RunnerService.SwitchSubscription.
+func (c *runnerServiceClient) SwitchSubscription(ctx context.Context, req *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.switchSubscription.CallUnary(ctx, req)
+}
+
+// SetSessionRotation calls lazybox.bench.v1.RunnerService.SetSessionRotation.
+func (c *runnerServiceClient) SetSessionRotation(ctx context.Context, req *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return c.setSessionRotation.CallUnary(ctx, req)
+}
+
 // GetSession calls lazybox.bench.v1.RunnerService.GetSession.
 func (c *runnerServiceClient) GetSession(ctx context.Context, req *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return c.getSession.CallUnary(ctx, req)
@@ -980,6 +3074,11 @@ func (c *runnerServiceClient) GetSession(ctx context.Context, req *connect.Reque
 // Apply calls lazybox.bench.v1.RunnerService.Apply.
 func (c *runnerServiceClient) Apply(ctx context.Context, req *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error) {
 	return c.apply.CallUnary(ctx, req)
+}
+
+// ReadAttachment calls lazybox.bench.v1.RunnerService.ReadAttachment.
+func (c *runnerServiceClient) ReadAttachment(ctx context.Context, req *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error) {
+	return c.readAttachment.CallUnary(ctx, req)
 }
 
 // CloseSession calls lazybox.bench.v1.RunnerService.CloseSession.
@@ -1017,6 +3116,11 @@ func (c *runnerServiceClient) WatchEvents(ctx context.Context, req *connect.Requ
 	return c.watchEvents.CallServerStream(ctx, req)
 }
 
+// ReadSessionTail calls lazybox.bench.v1.RunnerService.ReadSessionTail.
+func (c *runnerServiceClient) ReadSessionTail(ctx context.Context, req *connect.Request[gen.ReadSessionTailRequest]) (*connect.Response[gen.ReadSessionTailResponse], error) {
+	return c.readSessionTail.CallUnary(ctx, req)
+}
+
 // StartCommand calls lazybox.bench.v1.RunnerService.StartCommand.
 func (c *runnerServiceClient) StartCommand(ctx context.Context, req *connect.Request[gen.StartCommandRequest]) (*connect.Response[gen.CommandStatus], error) {
 	return c.startCommand.CallUnary(ctx, req)
@@ -1042,6 +3146,11 @@ func (c *runnerServiceClient) ListCommands(ctx context.Context, req *connect.Req
 	return c.listCommands.CallUnary(ctx, req)
 }
 
+// ClaimCommandShare calls lazybox.bench.v1.RunnerService.ClaimCommandShare.
+func (c *runnerServiceClient) ClaimCommandShare(ctx context.Context, req *connect.Request[gen.CommandRequest]) (*connect.Response[gen.ClaimCommandShareResponse], error) {
+	return c.claimCommandShare.CallUnary(ctx, req)
+}
+
 // ReadCommand calls lazybox.bench.v1.RunnerService.ReadCommand.
 func (c *runnerServiceClient) ReadCommand(ctx context.Context, req *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error) {
 	return c.readCommand.CallUnary(ctx, req)
@@ -1057,9 +3166,594 @@ func (c *runnerServiceClient) CancelCommand(ctx context.Context, req *connect.Re
 	return c.cancelCommand.CallUnary(ctx, req)
 }
 
+// BackgroundCommand calls lazybox.bench.v1.RunnerService.BackgroundCommand.
+func (c *runnerServiceClient) BackgroundCommand(ctx context.Context, req *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error) {
+	return c.backgroundCommand.CallUnary(ctx, req)
+}
+
+// FollowPipe calls lazybox.bench.v1.RunnerService.FollowPipe.
+func (c *runnerServiceClient) FollowPipe(ctx context.Context, req *connect.Request[gen.FollowPipeRequest]) (*connect.Response[gen.FollowPipeResponse], error) {
+	return c.followPipe.CallUnary(ctx, req)
+}
+
 // WatchOutput calls lazybox.bench.v1.RunnerService.WatchOutput.
 func (c *runnerServiceClient) WatchOutput(ctx context.Context, req *connect.Request[gen.WatchOutputRequest]) (*connect.ServerStreamForClient[gen.OutputEvent], error) {
 	return c.watchOutput.CallServerStream(ctx, req)
+}
+
+// OpenTerminal calls lazybox.bench.v1.RunnerService.OpenTerminal.
+func (c *runnerServiceClient) OpenTerminal(ctx context.Context, req *connect.Request[gen.OpenTerminalRequest]) (*connect.Response[gen.TerminalStatus], error) {
+	return c.openTerminal.CallUnary(ctx, req)
+}
+
+// ListTerminals calls lazybox.bench.v1.RunnerService.ListTerminals.
+func (c *runnerServiceClient) ListTerminals(ctx context.Context, req *connect.Request[gen.ListTerminalsRequest]) (*connect.Response[gen.ListTerminalsResponse], error) {
+	return c.listTerminals.CallUnary(ctx, req)
+}
+
+// WatchTerminal calls lazybox.bench.v1.RunnerService.WatchTerminal.
+func (c *runnerServiceClient) WatchTerminal(ctx context.Context, req *connect.Request[gen.WatchTerminalRequest]) (*connect.ServerStreamForClient[gen.TerminalEvent], error) {
+	return c.watchTerminal.CallServerStream(ctx, req)
+}
+
+// WriteTerminal calls lazybox.bench.v1.RunnerService.WriteTerminal.
+func (c *runnerServiceClient) WriteTerminal(ctx context.Context, req *connect.Request[gen.WriteTerminalRequest]) (*connect.Response[gen.TerminalStatus], error) {
+	return c.writeTerminal.CallUnary(ctx, req)
+}
+
+// ResizeTerminal calls lazybox.bench.v1.RunnerService.ResizeTerminal.
+func (c *runnerServiceClient) ResizeTerminal(ctx context.Context, req *connect.Request[gen.ResizeTerminalRequest]) (*connect.Response[gen.TerminalStatus], error) {
+	return c.resizeTerminal.CallUnary(ctx, req)
+}
+
+// CloseTerminal calls lazybox.bench.v1.RunnerService.CloseTerminal.
+func (c *runnerServiceClient) CloseTerminal(ctx context.Context, req *connect.Request[gen.TerminalRequest]) (*connect.Response[gen.TerminalStatus], error) {
+	return c.closeTerminal.CallUnary(ctx, req)
+}
+
+// RestartRunner calls lazybox.bench.v1.RunnerService.RestartRunner.
+func (c *runnerServiceClient) RestartRunner(ctx context.Context, req *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error) {
+	return c.restartRunner.CallUnary(ctx, req)
+}
+
+// CommitWorkspaceChanges calls lazybox.bench.v1.RunnerService.CommitWorkspaceChanges.
+func (c *runnerServiceClient) CommitWorkspaceChanges(ctx context.Context, req *connect.Request[gen.CommitWorkspaceChangesRequest]) (*connect.Response[gen.CommitWorkspaceChangesResponse], error) {
+	return c.commitWorkspaceChanges.CallUnary(ctx, req)
+}
+
+// PushWorkspaceBranch calls lazybox.bench.v1.RunnerService.PushWorkspaceBranch.
+func (c *runnerServiceClient) PushWorkspaceBranch(ctx context.Context, req *connect.Request[gen.PushWorkspaceBranchRequest]) (*connect.Response[gen.PushWorkspaceBranchResponse], error) {
+	return c.pushWorkspaceBranch.CallUnary(ctx, req)
+}
+
+// CreatePullRequest calls lazybox.bench.v1.RunnerService.CreatePullRequest.
+func (c *runnerServiceClient) CreatePullRequest(ctx context.Context, req *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return c.createPullRequest.CallUnary(ctx, req)
+}
+
+// GetPullRequest calls lazybox.bench.v1.RunnerService.GetPullRequest.
+func (c *runnerServiceClient) GetPullRequest(ctx context.Context, req *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return c.getPullRequest.CallUnary(ctx, req)
+}
+
+// MergePullRequest calls lazybox.bench.v1.RunnerService.MergePullRequest.
+func (c *runnerServiceClient) MergePullRequest(ctx context.Context, req *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return c.mergePullRequest.CallUnary(ctx, req)
+}
+
+// ListWorkspaceGitSummaries calls lazybox.bench.v1.RunnerService.ListWorkspaceGitSummaries.
+func (c *runnerServiceClient) ListWorkspaceGitSummaries(ctx context.Context, req *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error) {
+	return c.listWorkspaceGitSummaries.CallUnary(ctx, req)
+}
+
+// ListLinks calls lazybox.bench.v1.RunnerService.ListLinks.
+func (c *runnerServiceClient) ListLinks(ctx context.Context, req *connect.Request[gen.ListLinksRequest]) (*connect.Response[gen.Links], error) {
+	return c.listLinks.CallUnary(ctx, req)
+}
+
+// LinkItem calls lazybox.bench.v1.RunnerService.LinkItem.
+func (c *runnerServiceClient) LinkItem(ctx context.Context, req *connect.Request[gen.LinkItemRequest]) (*connect.Response[gen.Links], error) {
+	return c.linkItem.CallUnary(ctx, req)
+}
+
+// UnlinkItem calls lazybox.bench.v1.RunnerService.UnlinkItem.
+func (c *runnerServiceClient) UnlinkItem(ctx context.Context, req *connect.Request[gen.UnlinkItemRequest]) (*connect.Response[gen.Links], error) {
+	return c.unlinkItem.CallUnary(ctx, req)
+}
+
+// SendPullRequestFailures calls lazybox.bench.v1.RunnerService.SendPullRequestFailures.
+func (c *runnerServiceClient) SendPullRequestFailures(ctx context.Context, req *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error) {
+	return c.sendPullRequestFailures.CallUnary(ctx, req)
+}
+
+// ImportPullRequestReview calls lazybox.bench.v1.RunnerService.ImportPullRequestReview.
+func (c *runnerServiceClient) ImportPullRequestReview(ctx context.Context, req *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error) {
+	return c.importPullRequestReview.CallUnary(ctx, req)
+}
+
+// ListReviewComments calls lazybox.bench.v1.RunnerService.ListReviewComments.
+func (c *runnerServiceClient) ListReviewComments(ctx context.Context, req *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.listReviewComments.CallUnary(ctx, req)
+}
+
+// AddReviewComment calls lazybox.bench.v1.RunnerService.AddReviewComment.
+func (c *runnerServiceClient) AddReviewComment(ctx context.Context, req *connect.Request[gen.AddReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.addReviewComment.CallUnary(ctx, req)
+}
+
+// EditReviewComment calls lazybox.bench.v1.RunnerService.EditReviewComment.
+func (c *runnerServiceClient) EditReviewComment(ctx context.Context, req *connect.Request[gen.EditReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.editReviewComment.CallUnary(ctx, req)
+}
+
+// DeleteReviewComment calls lazybox.bench.v1.RunnerService.DeleteReviewComment.
+func (c *runnerServiceClient) DeleteReviewComment(ctx context.Context, req *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.deleteReviewComment.CallUnary(ctx, req)
+}
+
+// SetReviewDisposition calls lazybox.bench.v1.RunnerService.SetReviewDisposition.
+func (c *runnerServiceClient) SetReviewDisposition(ctx context.Context, req *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.setReviewDisposition.CallUnary(ctx, req)
+}
+
+// SetReviewAutoResolve calls lazybox.bench.v1.RunnerService.SetReviewAutoResolve.
+func (c *runnerServiceClient) SetReviewAutoResolve(ctx context.Context, req *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.setReviewAutoResolve.CallUnary(ctx, req)
+}
+
+// StartReview calls lazybox.bench.v1.RunnerService.StartReview.
+func (c *runnerServiceClient) StartReview(ctx context.Context, req *connect.Request[gen.StartReviewRequest]) (*connect.Response[gen.StartReviewResponse], error) {
+	return c.startReview.CallUnary(ctx, req)
+}
+
+// AddReviewFinding calls lazybox.bench.v1.RunnerService.AddReviewFinding.
+func (c *runnerServiceClient) AddReviewFinding(ctx context.Context, req *connect.Request[gen.AddReviewFindingRequest]) (*connect.Response[gen.ReviewFinding], error) {
+	return c.addReviewFinding.CallUnary(ctx, req)
+}
+
+// ListReviewFindings calls lazybox.bench.v1.RunnerService.ListReviewFindings.
+func (c *runnerServiceClient) ListReviewFindings(ctx context.Context, req *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error) {
+	return c.listReviewFindings.CallUnary(ctx, req)
+}
+
+// SetReviewFindingState calls lazybox.bench.v1.RunnerService.SetReviewFindingState.
+func (c *runnerServiceClient) SetReviewFindingState(ctx context.Context, req *connect.Request[gen.SetReviewFindingStateRequest]) (*connect.Response[gen.ReviewFinding], error) {
+	return c.setReviewFindingState.CallUnary(ctx, req)
+}
+
+// UpdateReviewRun calls lazybox.bench.v1.RunnerService.UpdateReviewRun.
+func (c *runnerServiceClient) UpdateReviewRun(ctx context.Context, req *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.updateReviewRun.CallUnary(ctx, req)
+}
+
+// CancelReview calls lazybox.bench.v1.RunnerService.CancelReview.
+func (c *runnerServiceClient) CancelReview(ctx context.Context, req *connect.Request[gen.CancelReviewRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return c.cancelReview.CallUnary(ctx, req)
+}
+
+// AskAgent calls lazybox.bench.v1.RunnerService.AskAgent.
+func (c *runnerServiceClient) AskAgent(ctx context.Context, req *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error) {
+	return c.askAgent.CallUnary(ctx, req)
+}
+
+// WaitAgentAsk calls lazybox.bench.v1.RunnerService.WaitAgentAsk.
+func (c *runnerServiceClient) WaitAgentAsk(ctx context.Context, req *connect.Request[gen.WaitAgentAskRequest]) (*connect.Response[gen.AgentAsk], error) {
+	return c.waitAgentAsk.CallUnary(ctx, req)
+}
+
+// ListProcesses calls lazybox.bench.v1.RunnerService.ListProcesses.
+func (c *runnerServiceClient) ListProcesses(ctx context.Context, req *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {
+	return c.listProcesses.CallUnary(ctx, req)
+}
+
+// StopProcess calls lazybox.bench.v1.RunnerService.StopProcess.
+func (c *runnerServiceClient) StopProcess(ctx context.Context, req *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error) {
+	return c.stopProcess.CallUnary(ctx, req)
+}
+
+// CleanUpOrphanProcesses calls lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses.
+func (c *runnerServiceClient) CleanUpOrphanProcesses(ctx context.Context, req *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error) {
+	return c.cleanUpOrphanProcesses.CallUnary(ctx, req)
+}
+
+// GetOrchestrationProcess calls lazybox.bench.v1.RunnerService.GetOrchestrationProcess.
+func (c *runnerServiceClient) GetOrchestrationProcess(ctx context.Context, req *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error) {
+	return c.getOrchestrationProcess.CallUnary(ctx, req)
+}
+
+// ExplainOrchestrationProcess calls lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess.
+func (c *runnerServiceClient) ExplainOrchestrationProcess(ctx context.Context, req *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error) {
+	return c.explainOrchestrationProcess.CallUnary(ctx, req)
+}
+
+// ListTurnCheckpoints calls lazybox.bench.v1.RunnerService.ListTurnCheckpoints.
+func (c *runnerServiceClient) ListTurnCheckpoints(ctx context.Context, req *connect.Request[gen.TurnCheckpointsRequest]) (*connect.Response[gen.TurnCheckpoints], error) {
+	return c.listTurnCheckpoints.CallUnary(ctx, req)
+}
+
+// ListTurnChanges calls lazybox.bench.v1.RunnerService.ListTurnChanges.
+func (c *runnerServiceClient) ListTurnChanges(ctx context.Context, req *connect.Request[gen.TurnChangesRequest]) (*connect.Response[gen.TurnChanges], error) {
+	return c.listTurnChanges.CallUnary(ctx, req)
+}
+
+// ReadTurnDiff calls lazybox.bench.v1.RunnerService.ReadTurnDiff.
+func (c *runnerServiceClient) ReadTurnDiff(ctx context.Context, req *connect.Request[gen.TurnDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error) {
+	return c.readTurnDiff.CallUnary(ctx, req)
+}
+
+// PreviewRevertCode calls lazybox.bench.v1.RunnerService.PreviewRevertCode.
+func (c *runnerServiceClient) PreviewRevertCode(ctx context.Context, req *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.RevertCodePreview], error) {
+	return c.previewRevertCode.CallUnary(ctx, req)
+}
+
+// RevertCode calls lazybox.bench.v1.RunnerService.RevertCode.
+func (c *runnerServiceClient) RevertCode(ctx context.Context, req *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error) {
+	return c.revertCode.CallUnary(ctx, req)
+}
+
+// UndoRevertCode calls lazybox.bench.v1.RunnerService.UndoRevertCode.
+func (c *runnerServiceClient) UndoRevertCode(ctx context.Context, req *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error) {
+	return c.undoRevertCode.CallUnary(ctx, req)
+}
+
+// GetWorkspaceRuntime calls lazybox.bench.v1.RunnerService.GetWorkspaceRuntime.
+func (c *runnerServiceClient) GetWorkspaceRuntime(ctx context.Context, req *connect.Request[gen.WorkspaceRuntimeRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return c.getWorkspaceRuntime.CallUnary(ctx, req)
+}
+
+// ApproveWorkspaceScripts calls lazybox.bench.v1.RunnerService.ApproveWorkspaceScripts.
+func (c *runnerServiceClient) ApproveWorkspaceScripts(ctx context.Context, req *connect.Request[gen.ApproveWorkspaceScriptsRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return c.approveWorkspaceScripts.CallUnary(ctx, req)
+}
+
+// StartWorkspaceAction calls lazybox.bench.v1.RunnerService.StartWorkspaceAction.
+func (c *runnerServiceClient) StartWorkspaceAction(ctx context.Context, req *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error) {
+	return c.startWorkspaceAction.CallUnary(ctx, req)
+}
+
+// StopWorkspaceAction calls lazybox.bench.v1.RunnerService.StopWorkspaceAction.
+func (c *runnerServiceClient) StopWorkspaceAction(ctx context.Context, req *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error) {
+	return c.stopWorkspaceAction.CallUnary(ctx, req)
+}
+
+// RunWorkspaceSetup calls lazybox.bench.v1.RunnerService.RunWorkspaceSetup.
+func (c *runnerServiceClient) RunWorkspaceSetup(ctx context.Context, req *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return c.runWorkspaceSetup.CallUnary(ctx, req)
+}
+
+// GetWorkspaceRuntimeSettings calls lazybox.bench.v1.RunnerService.GetWorkspaceRuntimeSettings.
+func (c *runnerServiceClient) GetWorkspaceRuntimeSettings(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error) {
+	return c.getWorkspaceRuntimeSettings.CallUnary(ctx, req)
+}
+
+// SaveWorkspaceRuntimeSettings calls lazybox.bench.v1.RunnerService.SaveWorkspaceRuntimeSettings.
+func (c *runnerServiceClient) SaveWorkspaceRuntimeSettings(ctx context.Context, req *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error) {
+	return c.saveWorkspaceRuntimeSettings.CallUnary(ctx, req)
+}
+
+// GetRemoteAccess calls lazybox.bench.v1.RunnerService.GetRemoteAccess.
+func (c *runnerServiceClient) GetRemoteAccess(ctx context.Context, req *connect.Request[gen.GetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error) {
+	return c.getRemoteAccess.CallUnary(ctx, req)
+}
+
+// SetRemoteAccess calls lazybox.bench.v1.RunnerService.SetRemoteAccess.
+func (c *runnerServiceClient) SetRemoteAccess(ctx context.Context, req *connect.Request[gen.SetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error) {
+	return c.setRemoteAccess.CallUnary(ctx, req)
+}
+
+// BeginDevicePairing calls lazybox.bench.v1.RunnerService.BeginDevicePairing.
+func (c *runnerServiceClient) BeginDevicePairing(ctx context.Context, req *connect.Request[gen.BeginDevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return c.beginDevicePairing.CallUnary(ctx, req)
+}
+
+// GetDevicePairing calls lazybox.bench.v1.RunnerService.GetDevicePairing.
+func (c *runnerServiceClient) GetDevicePairing(ctx context.Context, req *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return c.getDevicePairing.CallUnary(ctx, req)
+}
+
+// CancelDevicePairing calls lazybox.bench.v1.RunnerService.CancelDevicePairing.
+func (c *runnerServiceClient) CancelDevicePairing(ctx context.Context, req *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return c.cancelDevicePairing.CallUnary(ctx, req)
+}
+
+// ListDevices calls lazybox.bench.v1.RunnerService.ListDevices.
+func (c *runnerServiceClient) ListDevices(ctx context.Context, req *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
+	return c.listDevices.CallUnary(ctx, req)
+}
+
+// RevokeDevice calls lazybox.bench.v1.RunnerService.RevokeDevice.
+func (c *runnerServiceClient) RevokeDevice(ctx context.Context, req *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
+	return c.revokeDevice.CallUnary(ctx, req)
+}
+
+// GetPushSettings calls lazybox.bench.v1.RunnerService.GetPushSettings.
+func (c *runnerServiceClient) GetPushSettings(ctx context.Context, req *connect.Request[gen.GetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error) {
+	return c.getPushSettings.CallUnary(ctx, req)
+}
+
+// SetPushSettings calls lazybox.bench.v1.RunnerService.SetPushSettings.
+func (c *runnerServiceClient) SetPushSettings(ctx context.Context, req *connect.Request[gen.SetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error) {
+	return c.setPushSettings.CallUnary(ctx, req)
+}
+
+// SendTestPush calls lazybox.bench.v1.RunnerService.SendTestPush.
+func (c *runnerServiceClient) SendTestPush(ctx context.Context, req *connect.Request[gen.SendTestPushRequest]) (*connect.Response[gen.SendTestPushResponse], error) {
+	return c.sendTestPush.CallUnary(ctx, req)
+}
+
+// ListMissions calls lazybox.bench.v1.RunnerService.ListMissions.
+func (c *runnerServiceClient) ListMissions(ctx context.Context, req *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error) {
+	return c.listMissions.CallUnary(ctx, req)
+}
+
+// GetMission calls lazybox.bench.v1.RunnerService.GetMission.
+func (c *runnerServiceClient) GetMission(ctx context.Context, req *connect.Request[gen.GetMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return c.getMission.CallUnary(ctx, req)
+}
+
+// CreateMission calls lazybox.bench.v1.RunnerService.CreateMission.
+func (c *runnerServiceClient) CreateMission(ctx context.Context, req *connect.Request[gen.CreateMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return c.createMission.CallUnary(ctx, req)
+}
+
+// UpdateMission calls lazybox.bench.v1.RunnerService.UpdateMission.
+func (c *runnerServiceClient) UpdateMission(ctx context.Context, req *connect.Request[gen.UpdateMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return c.updateMission.CallUnary(ctx, req)
+}
+
+// ListPromptHistory calls lazybox.bench.v1.RunnerService.ListPromptHistory.
+func (c *runnerServiceClient) ListPromptHistory(ctx context.Context, req *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error) {
+	return c.listPromptHistory.CallUnary(ctx, req)
+}
+
+// SpawnAgent calls lazybox.bench.v1.RunnerService.SpawnAgent.
+func (c *runnerServiceClient) SpawnAgent(ctx context.Context, req *connect.Request[gen.SpawnAgentRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.spawnAgent.CallUnary(ctx, req)
+}
+
+// ListAgentLineage calls lazybox.bench.v1.RunnerService.ListAgentLineage.
+func (c *runnerServiceClient) ListAgentLineage(ctx context.Context, req *connect.Request[gen.AgentLineageRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.listAgentLineage.CallUnary(ctx, req)
+}
+
+// SendAgentMessage calls lazybox.bench.v1.RunnerService.SendAgentMessage.
+func (c *runnerServiceClient) SendAgentMessage(ctx context.Context, req *connect.Request[gen.SendAgentMessageRequest]) (*connect.Response[gen.AgentMessageReceipt], error) {
+	return c.sendAgentMessage.CallUnary(ctx, req)
+}
+
+// WaitAgents calls lazybox.bench.v1.RunnerService.WaitAgents.
+func (c *runnerServiceClient) WaitAgents(ctx context.Context, req *connect.Request[gen.WaitAgentsRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.waitAgents.CallUnary(ctx, req)
+}
+
+// StopChildAgent calls lazybox.bench.v1.RunnerService.StopChildAgent.
+func (c *runnerServiceClient) StopChildAgent(ctx context.Context, req *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.stopChildAgent.CallUnary(ctx, req)
+}
+
+// ReportAgentTask calls lazybox.bench.v1.RunnerService.ReportAgentTask.
+func (c *runnerServiceClient) ReportAgentTask(ctx context.Context, req *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return c.reportAgentTask.CallUnary(ctx, req)
+}
+
+// ProposePlan calls lazybox.bench.v1.RunnerService.ProposePlan.
+func (c *runnerServiceClient) ProposePlan(ctx context.Context, req *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error) {
+	return c.proposePlan.CallUnary(ctx, req)
+}
+
+// ClaimLease calls lazybox.bench.v1.RunnerService.ClaimLease.
+func (c *runnerServiceClient) ClaimLease(ctx context.Context, req *connect.Request[gen.ClaimLeaseRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return c.claimLease.CallUnary(ctx, req)
+}
+
+// ReleaseLease calls lazybox.bench.v1.RunnerService.ReleaseLease.
+func (c *runnerServiceClient) ReleaseLease(ctx context.Context, req *connect.Request[gen.ReleaseLeaseRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return c.releaseLease.CallUnary(ctx, req)
+}
+
+// ListLeases calls lazybox.bench.v1.RunnerService.ListLeases.
+func (c *runnerServiceClient) ListLeases(ctx context.Context, req *connect.Request[gen.LeasesRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return c.listLeases.CallUnary(ctx, req)
+}
+
+// ListArtifacts calls lazybox.bench.v1.RunnerService.ListArtifacts.
+func (c *runnerServiceClient) ListArtifacts(ctx context.Context, req *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {
+	return c.listArtifacts.CallUnary(ctx, req)
+}
+
+// GetArtifact calls lazybox.bench.v1.RunnerService.GetArtifact.
+func (c *runnerServiceClient) GetArtifact(ctx context.Context, req *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.getArtifact.CallUnary(ctx, req)
+}
+
+// PutArtifact calls lazybox.bench.v1.RunnerService.PutArtifact.
+func (c *runnerServiceClient) PutArtifact(ctx context.Context, req *connect.Request[gen.PutArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.putArtifact.CallUnary(ctx, req)
+}
+
+// TrackArtifactFile calls lazybox.bench.v1.RunnerService.TrackArtifactFile.
+func (c *runnerServiceClient) TrackArtifactFile(ctx context.Context, req *connect.Request[gen.TrackArtifactFileRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.trackArtifactFile.CallUnary(ctx, req)
+}
+
+// UpdateArtifact calls lazybox.bench.v1.RunnerService.UpdateArtifact.
+func (c *runnerServiceClient) UpdateArtifact(ctx context.Context, req *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.updateArtifact.CallUnary(ctx, req)
+}
+
+// DeleteArtifact calls lazybox.bench.v1.RunnerService.DeleteArtifact.
+func (c *runnerServiceClient) DeleteArtifact(ctx context.Context, req *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error) {
+	return c.deleteArtifact.CallUnary(ctx, req)
+}
+
+// RetireArtifact calls lazybox.bench.v1.RunnerService.RetireArtifact.
+func (c *runnerServiceClient) RetireArtifact(ctx context.Context, req *connect.Request[gen.RetireArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return c.retireArtifact.CallUnary(ctx, req)
+}
+
+// SaveArtifactToRepository calls lazybox.bench.v1.RunnerService.SaveArtifactToRepository.
+func (c *runnerServiceClient) SaveArtifactToRepository(ctx context.Context, req *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error) {
+	return c.saveArtifactToRepository.CallUnary(ctx, req)
+}
+
+// CreateArtifactIssue calls lazybox.bench.v1.RunnerService.CreateArtifactIssue.
+func (c *runnerServiceClient) CreateArtifactIssue(ctx context.Context, req *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error) {
+	return c.createArtifactIssue.CallUnary(ctx, req)
+}
+
+// GetUserActions calls lazybox.bench.v1.RunnerService.GetUserActions.
+func (c *runnerServiceClient) GetUserActions(ctx context.Context, req *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error) {
+	return c.getUserActions.CallUnary(ctx, req)
+}
+
+// InitUserActions calls lazybox.bench.v1.RunnerService.InitUserActions.
+func (c *runnerServiceClient) InitUserActions(ctx context.Context, req *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error) {
+	return c.initUserActions.CallUnary(ctx, req)
+}
+
+// ListHookRuns calls lazybox.bench.v1.RunnerService.ListHookRuns.
+func (c *runnerServiceClient) ListHookRuns(ctx context.Context, req *connect.Request[gen.ListHookRunsRequest]) (*connect.Response[gen.HookRuns], error) {
+	return c.listHookRuns.CallUnary(ctx, req)
+}
+
+// TestHook calls lazybox.bench.v1.RunnerService.TestHook.
+func (c *runnerServiceClient) TestHook(ctx context.Context, req *connect.Request[gen.TestHookRequest]) (*connect.Response[gen.HookRun], error) {
+	return c.testHook.CallUnary(ctx, req)
+}
+
+// PostUiRequest calls lazybox.bench.v1.RunnerService.PostUiRequest.
+func (c *runnerServiceClient) PostUiRequest(ctx context.Context, req *connect.Request[gen.UiRequest]) (*connect.Response[gen.UiRequest], error) {
+	return c.postUiRequest.CallUnary(ctx, req)
+}
+
+// WaitUiRequest calls lazybox.bench.v1.RunnerService.WaitUiRequest.
+func (c *runnerServiceClient) WaitUiRequest(ctx context.Context, req *connect.Request[gen.WaitUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
+	return c.waitUiRequest.CallUnary(ctx, req)
+}
+
+// WatchUiRequests calls lazybox.bench.v1.RunnerService.WatchUiRequests.
+func (c *runnerServiceClient) WatchUiRequests(ctx context.Context, req *connect.Request[gen.WatchUiRequestsRequest]) (*connect.ServerStreamForClient[gen.UiRequest], error) {
+	return c.watchUiRequests.CallServerStream(ctx, req)
+}
+
+// CompleteUiRequest calls lazybox.bench.v1.RunnerService.CompleteUiRequest.
+func (c *runnerServiceClient) CompleteUiRequest(ctx context.Context, req *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
+	return c.completeUiRequest.CallUnary(ctx, req)
+}
+
+// GetConfigFiles calls lazybox.bench.v1.RunnerService.GetConfigFiles.
+func (c *runnerServiceClient) GetConfigFiles(ctx context.Context, req *connect.Request[gen.GetConfigFilesRequest]) (*connect.Response[gen.ConfigFiles], error) {
+	return c.getConfigFiles.CallUnary(ctx, req)
+}
+
+// UpdateConfigFile calls lazybox.bench.v1.RunnerService.UpdateConfigFile.
+func (c *runnerServiceClient) UpdateConfigFile(ctx context.Context, req *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error) {
+	return c.updateConfigFile.CallUnary(ctx, req)
+}
+
+// ListExtensions calls lazybox.bench.v1.RunnerService.ListExtensions.
+func (c *runnerServiceClient) ListExtensions(ctx context.Context, req *connect.Request[gen.ListExtensionsRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.listExtensions.CallUnary(ctx, req)
+}
+
+// ApproveExtension calls lazybox.bench.v1.RunnerService.ApproveExtension.
+func (c *runnerServiceClient) ApproveExtension(ctx context.Context, req *connect.Request[gen.ApproveExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.approveExtension.CallUnary(ctx, req)
+}
+
+// SetExtensionEnabled calls lazybox.bench.v1.RunnerService.SetExtensionEnabled.
+func (c *runnerServiceClient) SetExtensionEnabled(ctx context.Context, req *connect.Request[gen.SetExtensionEnabledRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.setExtensionEnabled.CallUnary(ctx, req)
+}
+
+// RemoveExtension calls lazybox.bench.v1.RunnerService.RemoveExtension.
+func (c *runnerServiceClient) RemoveExtension(ctx context.Context, req *connect.Request[gen.RemoveExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.removeExtension.CallUnary(ctx, req)
+}
+
+// InstallExampleExtension calls lazybox.bench.v1.RunnerService.InstallExampleExtension.
+func (c *runnerServiceClient) InstallExampleExtension(ctx context.Context, req *connect.Request[gen.InstallExampleExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return c.installExampleExtension.CallUnary(ctx, req)
+}
+
+// OpenExtensionPanel calls lazybox.bench.v1.RunnerService.OpenExtensionPanel.
+func (c *runnerServiceClient) OpenExtensionPanel(ctx context.Context, req *connect.Request[gen.OpenExtensionPanelRequest]) (*connect.Response[gen.ExtensionPanelSession], error) {
+	return c.openExtensionPanel.CallUnary(ctx, req)
+}
+
+// ListWorkspaceRepositories calls lazybox.bench.v1.RunnerService.ListWorkspaceRepositories.
+func (c *runnerServiceClient) ListWorkspaceRepositories(ctx context.Context, req *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error) {
+	return c.listWorkspaceRepositories.CallUnary(ctx, req)
+}
+
+// RequestRepository calls lazybox.bench.v1.RunnerService.RequestRepository.
+func (c *runnerServiceClient) RequestRepository(ctx context.Context, req *connect.Request[gen.RequestRepositoryRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return c.requestRepository.CallUnary(ctx, req)
+}
+
+// WaitRepositoryRequest calls lazybox.bench.v1.RunnerService.WaitRepositoryRequest.
+func (c *runnerServiceClient) WaitRepositoryRequest(ctx context.Context, req *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return c.waitRepositoryRequest.CallUnary(ctx, req)
+}
+
+// DeclineRepositoryRequest calls lazybox.bench.v1.RunnerService.DeclineRepositoryRequest.
+func (c *runnerServiceClient) DeclineRepositoryRequest(ctx context.Context, req *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return c.declineRepositoryRequest.CallUnary(ctx, req)
+}
+
+// RequestConversationStart calls lazybox.bench.v1.RunnerService.RequestConversationStart.
+func (c *runnerServiceClient) RequestConversationStart(ctx context.Context, req *connect.Request[gen.RequestConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return c.requestConversationStart.CallUnary(ctx, req)
+}
+
+// WaitConversationStart calls lazybox.bench.v1.RunnerService.WaitConversationStart.
+func (c *runnerServiceClient) WaitConversationStart(ctx context.Context, req *connect.Request[gen.WaitConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return c.waitConversationStart.CallUnary(ctx, req)
+}
+
+// AnswerConversationStart calls lazybox.bench.v1.RunnerService.AnswerConversationStart.
+func (c *runnerServiceClient) AnswerConversationStart(ctx context.Context, req *connect.Request[gen.AnswerConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return c.answerConversationStart.CallUnary(ctx, req)
+}
+
+// WatchBrowser calls lazybox.bench.v1.RunnerService.WatchBrowser.
+func (c *runnerServiceClient) WatchBrowser(ctx context.Context, req *connect.Request[gen.WatchBrowserRequest]) (*connect.ServerStreamForClient[gen.BrowserEvent], error) {
+	return c.watchBrowser.CallServerStream(ctx, req)
+}
+
+// ControlBrowser calls lazybox.bench.v1.RunnerService.ControlBrowser.
+func (c *runnerServiceClient) ControlBrowser(ctx context.Context, req *connect.Request[gen.ControlBrowserRequest]) (*connect.Response[gen.BrowserState], error) {
+	return c.controlBrowser.CallUnary(ctx, req)
+}
+
+// SendBrowserInput calls lazybox.bench.v1.RunnerService.SendBrowserInput.
+func (c *runnerServiceClient) SendBrowserInput(ctx context.Context, req *connect.Request[gen.BrowserInputRequest]) (*connect.Response[gen.BrowserState], error) {
+	return c.sendBrowserInput.CallUnary(ctx, req)
+}
+
+// DecideBrowserRequest calls lazybox.bench.v1.RunnerService.DecideBrowserRequest.
+func (c *runnerServiceClient) DecideBrowserRequest(ctx context.Context, req *connect.Request[gen.DecideBrowserRequestRequest]) (*connect.Response[gen.BrowserState], error) {
+	return c.decideBrowserRequest.CallUnary(ctx, req)
+}
+
+// GetBrowserSettings calls lazybox.bench.v1.RunnerService.GetBrowserSettings.
+func (c *runnerServiceClient) GetBrowserSettings(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.BrowserSettings], error) {
+	return c.getBrowserSettings.CallUnary(ctx, req)
+}
+
+// SaveBrowserSettings calls lazybox.bench.v1.RunnerService.SaveBrowserSettings.
+func (c *runnerServiceClient) SaveBrowserSettings(ctx context.Context, req *connect.Request[gen.BrowserSettings]) (*connect.Response[gen.BrowserSettings], error) {
+	return c.saveBrowserSettings.CallUnary(ctx, req)
+}
+
+// ClearBrowserData calls lazybox.bench.v1.RunnerService.ClearBrowserData.
+func (c *runnerServiceClient) ClearBrowserData(ctx context.Context, req *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error) {
+	return c.clearBrowserData.CallUnary(ctx, req)
+}
+
+// InstallBrowser calls lazybox.bench.v1.RunnerService.InstallBrowser.
+func (c *runnerServiceClient) InstallBrowser(ctx context.Context, req *connect.Request[gen.InfoRequest]) (*connect.Response[gen.CommandStatus], error) {
+	return c.installBrowser.CallUnary(ctx, req)
 }
 
 // RunnerServiceHandler is an implementation of the lazybox.bench.v1.RunnerService service.
@@ -1067,17 +3761,57 @@ type RunnerServiceHandler interface {
 	ListSnippets(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.SnippetCatalog], error)
 	GetRepositoryCatalog(context.Context, *connect.Request[gen.GetRepositoryCatalogRequest]) (*connect.Response[gen.RepositoryCatalog], error)
 	PrepareWorkspace(context.Context, *connect.Request[gen.PrepareWorkspaceRequest], *connect.ServerStream[gen.WorkspacePreparation]) error
+	// A repository's branches for New task's "Start from" choice, its default
+	// branch and the branch it last started from (WORKSPACES.md, "Start from").
+	ListRepositoryBranches(context.Context, *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error)
+	// The owner's only. Replaces Lazybox's copy of a GitHub repository whose
+	// history changed on GitHub since Lazybox copied it (a force-push with a
+	// new root, or a new repository that took its name) with a fresh copy of
+	// what GitHub has now. Without confirm it only says what that changes.
+	// Workspaces made from the old copy keep their worktrees on it.
+	RefreshRepositoryIdentity(context.Context, *connect.Request[gen.RefreshRepositoryIdentityRequest]) (*connect.Response[gen.RepositoryIdentityRefresh], error)
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	GetRunnerSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.RunnerSettings], error)
 	SaveRunnerSettings(context.Context, *connect.Request[gen.RunnerSettings]) (*connect.Response[gen.RunnerSettings], error)
 	SetModelPrice(context.Context, *connect.Request[gen.SetModelPriceRequest]) (*connect.Response[gen.RunnerSettings], error)
+	// Owner only. How Claude agents authenticate (CLAUDE_COMPLIANCE.md): whether
+	// an Anthropic API key is saved (never the key itself) and which cloud
+	// provider the Runner's environment selects.
+	GetClaudeAuth(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.ClaudeAuth], error)
+	// Owner only. Saves or forgets the Anthropic API key the claude-default
+	// account's agents run with.
+	SetClaudeApiKey(context.Context, *connect.Request[gen.SetClaudeApiKeyRequest]) (*connect.Response[gen.ClaudeAuth], error)
+	// Owner only. The user's themes folder for Settings → Appearance: each .json
+	// or .toml file parsed to JSON, read on every call so edits apply without a
+	// restart. The client validates each document against its token catalogue.
+	ListThemes(context.Context, *connect.Request[gen.ListThemesRequest]) (*connect.Response[gen.ThemeFolder], error)
+	// Owner only. Creates a theme file in that folder; never replaces an
+	// existing one.
+	CreateTheme(context.Context, *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error)
 	Info(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error)
+	// Owner only. Which agent providers this Runner can run and on which saved
+	// subscriptions: each provider's program (found, where, which version) and
+	// each subscription's state. Ask Lazybox picks its agent from it; the
+	// welcome shows it. Programs are probed once and again on refresh;
+	// subscription states are read on every call.
+	GetProviderAvailability(context.Context, *connect.Request[gen.ProviderAvailabilityRequest]) (*connect.Response[gen.ProviderAvailability], error)
+	// Owner only. Adds or changes an ACP agent the person runs (a custom one,
+	// or a built-in one's command), and answers with the availability report,
+	// probed again. Environment values stay on the Runner (ACP.md).
+	SaveAcpAgent(context.Context, *connect.Request[gen.SaveAcpAgentRequest]) (*connect.Response[gen.ProviderAvailability], error)
+	// Owner only. Removes a custom ACP agent, or restores a built-in one's
+	// command. Running conversations keep their agent.
+	RemoveAcpAgent(context.Context, *connect.Request[gen.RemoveAcpAgentRequest]) (*connect.Response[gen.ProviderAvailability], error)
 	GetTelemetry(context.Context, *connect.Request[gen.TelemetryRequest]) (*connect.Response[gen.TelemetryReport], error)
 	RenameCollection(context.Context, *connect.Request[gen.RenameCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddSubscription(context.Context, *connect.Request[gen.AddSubscriptionRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	GetSubscriptionEnrollment(context.Context, *connect.Request[gen.SubscriptionEnrollmentRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	CancelSubscriptionEnrollment(context.Context, *connect.Request[gen.SubscriptionEnrollmentRequest]) (*connect.Response[gen.SubscriptionEnrollment], error)
 	RefreshSubscription(context.Context, *connect.Request[gen.RefreshSubscriptionRequest]) (*connect.Response[gen.Profile], error)
+	// Owner only. Forgets a subscription saved in Lazybox: its registry entry and
+	// its private folder (an imported token among them). Refused while a running
+	// conversation uses it. The person's own CLI sign-ins are never touched.
+	RemoveSubscription(context.Context, *connect.Request[gen.RemoveSubscriptionRequest]) (*connect.Response[gen.InfoResponse], error)
 	GetGitHubConnection(context.Context, *connect.Request[gen.GetGitHubConnectionRequest]) (*connect.Response[gen.GitHubConnection], error)
 	ConfigureGitHubApp(context.Context, *connect.Request[gen.ConfigureGitHubAppRequest]) (*connect.Response[gen.GitHubConnection], error)
 	ConnectGitHubPersonalToken(context.Context, *connect.Request[gen.ConnectGitHubPersonalTokenRequest]) (*connect.Response[gen.GitHubConnection], error)
@@ -1091,26 +3825,96 @@ type RunnerServiceHandler interface {
 	ListGitHubRepositories(context.Context, *connect.Request[gen.ListGitHubRepositoriesRequest]) (*connect.Response[gen.ListGitHubRepositoriesResponse], error)
 	ImportGitHubRepository(context.Context, *connect.Request[gen.ImportGitHubRepositoryRequest]) (*connect.Response[gen.ImportGitHubRepositoryResponse], error)
 	ListGitHubItems(context.Context, *connect.Request[gen.ListGitHubItemsRequest]) (*connect.Response[gen.ListGitHubItemsResponse], error)
+	// Work items (PROJECTS_AND_INTEGRATIONS.md): search a provider for the
+	// picker, read one item with the context an agent is given, turn a pasted
+	// link into its reference, and find the workspaces started from one.
+	SearchItems(context.Context, *connect.Request[gen.SearchItemsRequest]) (*connect.Response[gen.ItemPage], error)
+	GetItem(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemDetail], error)
+	ResolveItemUrl(context.Context, *connect.Request[gen.ResolveItemUrlRequest]) (*connect.Response[gen.ItemRef], error)
+	FindItemWorkspaces(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemWorkspaces], error)
 	AddLocalRepository(context.Context, *connect.Request[gen.AddLocalRepositoryRequest]) (*connect.Response[gen.AddLocalRepositoryResponse], error)
 	ListRepositories(context.Context, *connect.Request[gen.ListRepositoriesRequest]) (*connect.Response[gen.ListRepositoriesResponse], error)
 	RemoveRepository(context.Context, *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error)
+	// Home checkouts (WORKSPACES.md, "Home checkouts"): the person's own,
+	// non-worktree clone of a repository, for logins, long-lived dev servers
+	// and trying a module by hand. Owner only. Lazybox never deletes one, and
+	// no workspace operation touches it.
+	ListRepositoryHomes(context.Context, *connect.Request[gen.ListRepositoryHomesRequest]) (*connect.Response[gen.RepositoryHomes], error)
+	// Creates (clones), adopts (an existing checkout) or forgets a home; forgetting changes no file.
+	SetRepositoryHome(context.Context, *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error)
+	// Opens a repository's home in Finder or an editor on the Runner's computer.
+	OpenRepositoryHome(context.Context, *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error)
+	// Fetches the home's origin, then fast-forwards its default branch to the
+	// remote's only when it is checked out and has no changes; otherwise says
+	// why. Never discards, resets or switches anything.
+	UpdateRepositoryHome(context.Context, *connect.Request[gen.UpdateRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHomeUpdate], error)
 	CreateCollection(context.Context, *connect.Request[gen.CreateCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	AddCollectionRepositories(context.Context, *connect.Request[gen.AddCollectionRepositoriesRequest]) (*connect.Response[gen.CollectionResponse], error)
 	GetCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
+	// The workspaces in the person's order (ArrangeWorkspaces).
 	ListCollections(context.Context, *connect.Request[gen.ListCollectionsRequest]) (*connect.Response[gen.ListCollectionsResponse], error)
+	// Puts the workspaces in the person's order: the one ListCollections
+	// answers in, so every window and a paired phone list them alike, across
+	// restarts. The owner's only. Answers the list in its new order.
+	ArrangeWorkspaces(context.Context, *connect.Request[gen.ArrangeWorkspacesRequest]) (*connect.Response[gen.ListCollectionsResponse], error)
 	ArchiveCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
 	ReconcileCollection(context.Context, *connect.Request[gen.ReconcileCollectionRequest]) (*connect.Response[gen.CollectionResponse], error)
+	// The owner's only. What a previous Runner left unconfirmed in a workspace
+	// or a conversation (RESOURCE_OWNERSHIP.md, "Unconfirmed ownership"): each
+	// recorded agent and command, its PID and command line, and whether a
+	// process with that identity still runs, checked by the Runner. What it
+	// proves gone it settles there and then.
+	GetOwnership(context.Context, *connect.Request[gen.OwnershipRequest]) (*connect.Response[gen.Ownership], error)
+	// The owner's only. Settles it: stop exactly the recorded processes that
+	// still run (checked by identity, never a PID given to another program
+	// since), or record the person's word that they stopped.
+	ResolveOwnership(context.Context, *connect.Request[gen.ResolveOwnershipRequest]) (*connect.Response[gen.Ownership], error)
 	OpenSession(context.Context, *connect.Request[gen.OpenSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	OpenAssistant(context.Context, *connect.Request[gen.OpenAssistantRequest]) (*connect.Response[gen.SessionResponse], error)
 	RenameConversation(context.Context, *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Pin or unpin a conversation (any of its attempts' IDs). The owner's only.
+	PinConversation(context.Context, *connect.Request[gen.PinConversationRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Archive a conversation, or bring it back. Nothing is stopped or deleted:
+	// its agent keeps any turn in progress, and History still lists it.
+	ArchiveConversation(context.Context, *connect.Request[gen.ArchiveConversationRequest]) (*connect.Response[gen.SessionResponse], error)
 	ListWorkspaceChanges(context.Context, *connect.Request[gen.WorkspaceChangesRequest]) (*connect.Response[gen.WorkspaceChanges], error)
 	ReadWorkspaceDiff(context.Context, *connect.Request[gen.WorkspaceDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
 	ReadWorkspaceFile(context.Context, *connect.Request[gen.WorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
 	SaveWorkspaceFile(context.Context, *connect.Request[gen.SaveWorkspaceFileRequest]) (*connect.Response[gen.WorkspaceFile], error)
+	SearchWorkspaceFiles(context.Context, *connect.Request[gen.SearchWorkspaceFilesRequest]) (*connect.Response[gen.WorkspaceFileSearch], error)
+	ResolveWorkspacePath(context.Context, *connect.Request[gen.ResolveWorkspacePathRequest]) (*connect.Response[gen.WorkspacePathResolution], error)
 	ListHistory(context.Context, *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error)
 	ResumeSession(context.Context, *connect.Request[gen.ResumeSessionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Continues the conversation in a new agent started with another permission
+	// mode, for an agent whose running worker cannot change mode live.
+	RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Continues the conversation in a new agent started with another
+	// model, for an agent whose running worker cannot switch model live: it is
+	// ended between turns and the same provider conversation resumes.
+	RestartWithModel(context.Context, *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. "Give Claude the browser" (BROWSER.md): turns the agent
+	// browser back on for the conversation's workspace if the person turned it
+	// off there, and, for an agent started without the browser tools, ends it
+	// between turns and resumes the same provider conversation in a new agent
+	// that has them. Returns the session the conversation continues in.
+	GiveBrowser(context.Context, *connect.Request[gen.GiveBrowserRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Moves a live conversation to another signed-in subscription of
+	// its provider and continues the same conversation: the same execution,
+	// workspace, commands and queued messages, with a portable checkpoint for the
+	// new account. The current subscription retries in place (after a reset).
+	SwitchSubscription(context.Context, *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error)
+	// Owner only. Turns automatic switching at a subscription limit on or off
+	// for a conversation that already runs, or for every running one.
+	SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error)
 	GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error)
+	// The bytes of an image or a text file a sent message carried, so the
+	// conversation can show it: only a file the Runner retained as a message
+	// attachment (the path an operation_accepted record lists), only an image
+	// type a browser displays (PNG, JPEG, GIF, WebP) or text (valid UTF-8, no
+	// NUL; always served as text/plain), at most 20 MiB. The owner, and a
+	// paired phone reading conversations (REMOTE.md); never an agent.
+	ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error)
 	CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	StopSessionResources(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	DeleteConversation(context.Context, *connect.Request[gen.DeleteConversationRequest]) (*connect.Response[gen.DeleteConversationResponse], error)
@@ -1118,15 +3922,354 @@ type RunnerServiceHandler interface {
 	DeleteWorkspace(context.Context, *connect.Request[gen.DeleteWorkspaceRequest]) (*connect.Response[gen.CollectionResponse], error)
 	ContinueSession(context.Context, *connect.Request[gen.ContinueSessionRequest]) (*connect.Response[gen.SessionResponse], error)
 	WatchEvents(context.Context, *connect.Request[gen.WatchEventsRequest], *connect.ServerStream[gen.JournalEvent]) error
+	// The latest turns of a conversation in one response, or an earlier page:
+	// a window shows the latest at once and reads the rest in a few pages
+	// instead of a record-per-message replay. Turn starts come from an index the
+	// Runner keeps as journals open and grow, so no journal is parsed to find
+	// them.
+	ReadSessionTail(context.Context, *connect.Request[gen.ReadSessionTailRequest]) (*connect.Response[gen.ReadSessionTailResponse], error)
 	StartCommand(context.Context, *connect.Request[gen.StartCommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	RegisterPipe(context.Context, *connect.Request[gen.RegisterPipeRequest]) (*connect.Response[gen.CommandStatus], error)
 	Publish(context.Context, *connect.Request[gen.PublishRequest]) (*connect.Response[gen.CommandStatus], error)
 	FinishPipe(context.Context, *connect.Request[gen.FinishPipeRequest]) (*connect.Response[gen.CommandStatus], error)
 	ListCommands(context.Context, *connect.Request[gen.ListCommandsRequest]) (*connect.Response[gen.ListCommandsResponse], error)
+	// Takes a terminal run shared with a conversation (`lazybox log --to`) for
+	// one composer: true for the first caller only, so the run is added once.
+	ClaimCommandShare(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.ClaimCommandShareResponse], error)
 	ReadCommand(context.Context, *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error)
 	WaitCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
 	CancelCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
+	// Moves a `lazybox run` that is still in the foreground to the background:
+	// the agent's (or the person's) call returns now with a report, and the
+	// command keeps running, its output still streaming to the console. Only a
+	// run whose CLI follows the Runner (CommandStatus.can_background) can move.
+	BackgroundCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error)
+	// The `lazybox run` that publishes a pipe reports its state (foreground or
+	// background, its process, its listening ports) and waits up to wait_ms for
+	// what the Runner asks of it: stop the command, or move it to the
+	// background. Calling it makes the pipe followed: a Runner restart keeps it,
+	// and CancelCommand stops it through its CLI.
+	FollowPipe(context.Context, *connect.Request[gen.FollowPipeRequest]) (*connect.Response[gen.FollowPipeResponse], error)
 	WatchOutput(context.Context, *connect.Request[gen.WatchOutputRequest], *connect.ServerStream[gen.OutputEvent]) error
+	// Workspace terminals: a person's interactive shell, never an agent's.
+	OpenTerminal(context.Context, *connect.Request[gen.OpenTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	ListTerminals(context.Context, *connect.Request[gen.ListTerminalsRequest]) (*connect.Response[gen.ListTerminalsResponse], error)
+	WatchTerminal(context.Context, *connect.Request[gen.WatchTerminalRequest], *connect.ServerStream[gen.TerminalEvent]) error
+	WriteTerminal(context.Context, *connect.Request[gen.WriteTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	ResizeTerminal(context.Context, *connect.Request[gen.ResizeTerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	CloseTerminal(context.Context, *connect.Request[gen.TerminalRequest]) (*connect.Response[gen.TerminalStatus], error)
+	// Owner only. Asks the launcher that supervises this Runner to start it
+	// again: the Runner records the request and stops exactly as on any restart,
+	// detaching (never stopping) agents, managed commands and terminals.
+	RestartRunner(context.Context, *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error)
+	// The PR loop, per workspace repository: the owner's only Git and GitHub
+	// writes. Agent credentials can never call these.
+	CommitWorkspaceChanges(context.Context, *connect.Request[gen.CommitWorkspaceChangesRequest]) (*connect.Response[gen.CommitWorkspaceChangesResponse], error)
+	PushWorkspaceBranch(context.Context, *connect.Request[gen.PushWorkspaceBranchRequest]) (*connect.Response[gen.PushWorkspaceBranchResponse], error)
+	CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error)
+	// The sidebar's git state, per workspace and repository: branch, ahead and
+	// behind its pushed branch and the default branch, uncommitted files, and the
+	// last pull request seen for the branch. Local Git only (no fetch); the pull
+	// request comes from the tracked items (ListLinks), which the Runner keeps
+	// fresh in the background for pushed branches. Owner only.
+	ListWorkspaceGitSummaries(context.Context, *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error)
+	// Tracked work items (PROJECTS_AND_INTEGRATIONS.md, GITHUB.md "Tracked pull
+	// requests"): the pull requests a workspace delivers and the items it
+	// mentions, kept fresh by their provider and persisted across restarts.
+	// ListLinks and LinkItem admit an agent for its own workspace (`lazybox
+	// items`, `lazybox link`); a paired phone reads them with the read grant.
+	ListLinks(context.Context, *connect.Request[gen.ListLinksRequest]) (*connect.Response[gen.Links], error)
+	LinkItem(context.Context, *connect.Request[gen.LinkItemRequest]) (*connect.Response[gen.Links], error)
+	UnlinkItem(context.Context, *connect.Request[gen.UnlinkItemRequest]) (*connect.Response[gen.Links], error)
+	// One-click reactions to a tracked pull request, always a person's: the
+	// failing checks' logs, compacted as `lazybox run` compacts output, and
+	// GitHub's review comments as Review comments, each sent to the
+	// conversation that delivered it (queued while it is mid-turn).
+	SendPullRequestFailures(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error)
+	ImportPullRequestReview(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error)
+	// Inline review comments on a workspace's changes, kept per workspace on the
+	// Runner so every window shows them. Owner only. Every reply is the whole
+	// review, each comment anchored against the working tree as it is now.
+	ListReviewComments(context.Context, *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	AddReviewComment(context.Context, *connect.Request[gen.AddReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	EditReviewComment(context.Context, *connect.Request[gen.EditReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	DeleteReviewComment(context.Context, *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	SetReviewDisposition(context.Context, *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	SetReviewAutoResolve(context.Context, *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// Owner only. One-click cross-agent review (GITHUB.md, "Agent review"):
+	// opens a read-only conversation in the same workspace on another agent
+	// (by default the other provider than the source conversation's), titled
+	// "Review · <scope> · <agent>", linked to the source, and sends it a brief
+	// generated from the source's goal, the scope's diff and files, and the
+	// `lazybox run` evidence so far. Its findings land in the workspace's review.
+	StartReview(context.Context, *connect.Request[gen.StartReviewRequest]) (*connect.Response[gen.StartReviewResponse], error)
+	// A reviewer's finding, from `lazybox review add`. An agent credential may
+	// call it only for its own execution, and only while that execution is the
+	// reviewer of a review in its own workspace: the Runner derives the
+	// workspace, review and author from the execution, never the request. A
+	// finding with the key of one already filed in that review updates it.
+	AddReviewFinding(context.Context, *connect.Request[gen.AddReviewFindingRequest]) (*connect.Response[gen.ReviewFinding], error)
+	// The findings of the review an execution is the reviewer (or the author)
+	// of, from `lazybox review list`. The same agent rule as AddReviewFinding.
+	ListReviewFindings(context.Context, *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error)
+	// The reviewer's verdict on one of its own findings in a later round
+	// (`lazybox review resolve|reopen <id> --note`): resolved, or still open.
+	// The same agent rule as AddReviewFinding; only findings of its own review.
+	SetReviewFindingState(context.Context, *connect.Request[gen.SetReviewFindingStateRequest]) (*connect.Response[gen.ReviewFinding], error)
+	// Owner only. Controls a review's loop: pause, resume, stop, take over,
+	// and how findings reach the author between rounds.
+	UpdateReviewRun(context.Context, *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// Owner only. Cancels a review under way (GITHUB.md, "Cancelling a
+	// review"): no further round of its loop starts, the reviewer's running
+	// turn is interrupted and its session ended. Its conversation and the
+	// findings it filed are kept; the review reads "cancelled", with who
+	// cancelled it and when. The reply is the review's workspace review.
+	CancelReview(context.Context, *connect.Request[gen.CancelReviewRequest]) (*connect.Response[gen.WorkspaceReview], error)
+	// One agent asks the other a question (`lazybox ask author|reviewer`): an
+	// agent credential may ask only for its own execution, and only between the
+	// author and the reviewer of one review in the same workspace. The question
+	// goes to the other conversation as a labelled message; its reply comes back.
+	AskAgent(context.Context, *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error)
+	// Waits, at most timeout_seconds (bounded), for the reply. Only the asker.
+	WaitAgentAsk(context.Context, *connect.Request[gen.WaitAgentAskRequest]) (*connect.Response[gen.AgentAsk], error)
+	// Owner only. Every process the Runner hosts so it outlives the Runner
+	// (agents, managed commands, terminals), held by this Runner or orphaned.
+	ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error)
+	// Owner only. Stops one hosted process the way its owner would: closes the
+	// agent's session, cancels the command, closes the terminal; an orphan is
+	// stopped directly.
+	StopProcess(context.Context, *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error)
+	// Owner only. The safe sweep: stops every host this Runner does not hold.
+	CleanUpOrphanProcesses(context.Context, *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error)
+	// Owner only. The orchestration process (v2/ORCHESTRATION.md §4) a mission
+	// in a workspace would run: a built-in preset, the user's process file and
+	// the repository's committed .lazybox/process.yaml, resolved under the
+	// user's ceiling and validated. Read-only; nothing runs it yet.
+	GetOrchestrationProcess(context.Context, *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error)
+	// Owner only. What that process does on one event type, in firing order.
+	ExplainOrchestrationProcess(context.Context, *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error)
+	// Owner only. Per-turn code checkpoints: the workspace's files saved to a
+	// private ref before each agent turn and after it, uncommitted and untracked
+	// files included. Lists a conversation's turns and reverts.
+	ListTurnCheckpoints(context.Context, *connect.Request[gen.TurnCheckpointsRequest]) (*connect.Response[gen.TurnCheckpoints], error)
+	// Owner only. What one turn changed (checkpoint before → after), per repository.
+	ListTurnChanges(context.Context, *connect.Request[gen.TurnChangesRequest]) (*connect.Response[gen.TurnChanges], error)
+	ReadTurnDiff(context.Context, *connect.Request[gen.TurnDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error)
+	// Owner only. What reverting to before a turn would change, without changing it.
+	PreviewRevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.RevertCodePreview], error)
+	// Owner only. Restores the workspace's files to before a turn, after saving
+	// the current ones so the revert can be undone. Never moves a branch.
+	// Refused while an agent in the workspace is in a turn.
+	RevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
+	// Owner only. Undoes the latest revert (an undo can itself be undone).
+	UndoRevertCode(context.Context, *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error)
+	// The workspace runtime (WORKSPACE_RUNTIME.md): each repository's committed
+	// .lazybox/workspace.yaml (setup, archive, actions, files to copy) and the
+	// workspace's port block. Owner only: neither an agent's nor a terminal's
+	// credential may call these. An agent starts an action only through its
+	// lazybox_command tool, and only when its session's permission allows.
+	GetWorkspaceRuntime(context.Context, *connect.Request[gen.WorkspaceRuntimeRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	// Approves exactly the repository scripts the person reviewed (by hash),
+	// optionally running setup right away.
+	ApproveWorkspaceScripts(context.Context, *connect.Request[gen.ApproveWorkspaceScriptsRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	StartWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error)
+	StopWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error)
+	RunWorkspaceSetup(context.Context, *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error)
+	GetWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
+	SaveWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error)
+	// Owner only. Remote control from a phone (REMOTE.md): how a paired device
+	// reaches this Runner, and turning the Tailscale route on or off.
+	GetRemoteAccess(context.Context, *connect.Request[gen.GetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error)
+	SetRemoteAccess(context.Context, *connect.Request[gen.SetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error)
+	// Owner only. A one-time, short-lived pairing offer for the QR code, its
+	// progress while the phone completes it, and withdrawing it.
+	BeginDevicePairing(context.Context, *connect.Request[gen.BeginDevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	GetDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	CancelDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error)
+	// Owner only. Paired devices, and revoking one: its access ends at its next request.
+	ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error)
+	// Web Push to a paired phone (REMOTE.md). A phone reads and sets its own
+	// subscription and preferences (the device allowlist admits it with read);
+	// the owner sees them on each device and can send it a test.
+	GetPushSettings(context.Context, *connect.Request[gen.GetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error)
+	SetPushSettings(context.Context, *connect.Request[gen.SetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error)
+	SendTestPush(context.Context, *connect.Request[gen.SendTestPushRequest]) (*connect.Response[gen.SendTestPushResponse], error)
+	// Missions (ORCHESTRATION.md slice 1), owner only. A mission's board is
+	// derived from its event log and live observations; nothing else is stored.
+	ListMissions(context.Context, *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error)
+	GetMission(context.Context, *connect.Request[gen.GetMissionRequest]) (*connect.Response[gen.Mission], error)
+	CreateMission(context.Context, *connect.Request[gen.CreateMissionRequest]) (*connect.Response[gen.Mission], error)
+	// One typed change: a goal, a task, an assignment, a report, a decision at
+	// a gate, a cancellation. Refused changes say why and write nothing.
+	UpdateMission(context.Context, *connect.Request[gen.UpdateMissionRequest]) (*connect.Response[gen.Mission], error)
+	// Owner only. Sent prompts, newest first, from the Runner's prompt log, with
+	// the snippet chain a conversation offers next.
+	ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error)
+	// The Orchestrator verbs (`lazybox agents …`; audits/2026-11-16/sota-agents.md
+	// §6.3). An agent credential calls them only for its own execution. Starting
+	// an agent needs an Orchestrator grant in force, which only the person gives
+	// (UpdateMission grant); every other verb reaches only the caller's own
+	// lineage: the children it started, or its parent. None approves, answers,
+	// passes a gate or accepts a task.
+	SpawnAgent(context.Context, *connect.Request[gen.SpawnAgentRequest]) (*connect.Response[gen.AgentLineage], error)
+	ListAgentLineage(context.Context, *connect.Request[gen.AgentLineageRequest]) (*connect.Response[gen.AgentLineage], error)
+	SendAgentMessage(context.Context, *connect.Request[gen.SendAgentMessageRequest]) (*connect.Response[gen.AgentMessageReceipt], error)
+	// Waits, at most timeout_seconds (bounded), until the targets reach a state
+	// or (until "event") anything happens in the lineage after after_seq.
+	WaitAgents(context.Context, *connect.Request[gen.WaitAgentsRequest]) (*connect.Response[gen.AgentLineage], error)
+	StopChildAgent(context.Context, *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error)
+	// A child reports its own task done to the person (and its parent).
+	ReportAgentTask(context.Context, *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error)
+	// An orchestrator proposes how it would split the mission into agents,
+	// with an estimate (`lazybox mission plan`). It waits for the person's
+	// approval (UpdateMission approve_plan, owner only) before any of them
+	// starts when the grant requires a plan.
+	ProposePlan(context.Context, *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error)
+	// Advisory path leases (`lazybox lease`): an agent leases paths for its own
+	// task (an orchestrator, for its agents' tasks). Nothing is blocked; an
+	// edit inside another task's exclusive lease is recorded as an overlap.
+	ClaimLease(context.Context, *connect.Request[gen.ClaimLeaseRequest]) (*connect.Response[gen.MissionLeases], error)
+	ReleaseLease(context.Context, *connect.Request[gen.ReleaseLeaseRequest]) (*connect.Response[gen.MissionLeases], error)
+	ListLeases(context.Context, *connect.Request[gen.LeasesRequest]) (*connect.Response[gen.MissionLeases], error)
+	// Artifacts: versioned documents (plans, reports, specs, notes) of one
+	// workspace, kept by the Runner (ARTIFACTS.md). An agent credential may list,
+	// read and put artifacts of its own execution's workspace only
+	// (`lazybox artifact`), and retire the ones an agent published there;
+	// everything else here is the owner's.
+	ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error)
+	GetArtifact(context.Context, *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Creates an artifact, or appends a version to one. The author is who called
+	// (a person, or the agent whose credential it is), never what the request says.
+	PutArtifact(context.Context, *connect.Request[gen.PutArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Tracks a workspace text file: the artifact's first version is
+	// the file, and the Runner records a version whenever the file changes on
+	// disk. Tracking a file that is already tracked returns that artifact.
+	TrackArtifactFile(context.Context, *connect.Request[gen.TrackArtifactFileRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Rename, change kind, or stop following the tracked file.
+	UpdateArtifact(context.Context, *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	DeleteArtifact(context.Context, *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error)
+	// Retires an artifact, or restores a retired one. Retiring is reversible:
+	// the artifact and every version are kept, it leaves the default list, and
+	// it may name the artifact that supersedes it. The owner retires or restores
+	// any; an agent credential may only retire, in its own execution's
+	// workspace, an artifact every version of which an agent published.
+	RetireArtifact(context.Context, *connect.Request[gen.RetireArtifactRequest]) (*connect.Response[gen.Artifact], error)
+	// Owner only. Writes the artifact's latest version into a workspace
+	// repository; never stages or commits.
+	SaveArtifactToRepository(context.Context, *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error)
+	// Owner only. Opens a GitHub issue with the artifact as its body, in a
+	// workspace repository's GitHub project, through the GitHub connection.
+	CreateArtifactIssue(context.Context, *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error)
+	// Power-user extensibility (POWER.md), owner only. The user's actions and
+	// hooks file as the Runner last loaded it: actions the app offers in its
+	// menus and runs with the owner's own rules, hooks the Runner fires on
+	// events, and every problem with the file by line.
+	GetUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error)
+	// Owner only. Creates the actions file with a commented starter and its
+	// JSON Schema beside it, when there is none; never replaces a file.
+	InitUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error)
+	// Owner only. Recent hook runs, newest first; each run's output is its
+	// command's (ReadCommand).
+	ListHookRuns(context.Context, *connect.Request[gen.ListHookRunsRequest]) (*connect.Response[gen.HookRuns], error)
+	// Owner only. Fires one hook now with a sample event, as Settings' Test does.
+	TestHook(context.Context, *connect.Request[gen.TestHookRequest]) (*connect.Response[gen.HookRun], error)
+	// Owner only. Asks the person's open Lazybox window to do something the CLI
+	// cannot: show a workspace, conversation or file (`lazybox open`), take a
+	// screenshot (`lazybox shot`) or run a user action (`lazybox actions run`).
+	// Refused at once when no window is open to handle it.
+	PostUiRequest(context.Context, *connect.Request[gen.UiRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. Waits for a posted request's outcome (bounded).
+	WaitUiRequest(context.Context, *connect.Request[gen.WaitUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. A window follows the requests addressed to it…
+	WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest], *connect.ServerStream[gen.UiRequest]) error
+	// …and answers each one, with a screenshot's PNG when one was asked for.
+	CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error)
+	// Owner only. The person's config files beside the actions file (POWER.md,
+	// "Config files"): keys.yaml, settings.yaml and layouts/*.yaml as the
+	// Runner last loaded them, each with its problems by line. A file that does
+	// not load keeps its last good version in force, marked stale.
+	GetConfigFiles(context.Context, *connect.Request[gen.GetConfigFilesRequest]) (*connect.Response[gen.ConfigFiles], error)
+	// Owner only. Changes one config file: values at paths (comments kept), a
+	// whole new content (import), or removal (a layout). Nothing is written
+	// when the result would not load; the refusal names each problem by line.
+	UpdateConfigFile(context.Context, *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error)
+	// Owner only. Sandboxed panel extensions (EXTENSIONS.md): the folders in the
+	// config folder's extensions/, each with what its manifest asks for, what
+	// the person approved, and its state. Reloaded every second.
+	ListExtensions(context.Context, *connect.Request[gen.ListExtensionsRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Approves exactly the grants and hosts the person was shown and
+	// turns the extension on; refused when its manifest asks for anything else
+	// now, or does not load.
+	ApproveExtension(context.Context, *connect.Request[gen.ApproveExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Turns an approved extension off, or back on (refused when it
+	// asks for more than was approved: that needs ApproveExtension).
+	SetExtensionEnabled(context.Context, *connect.Request[gen.SetExtensionEnabledRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Deletes an extension's folder and its approval.
+	RemoveExtension(context.Context, *connect.Request[gen.RemoveExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Copies one of the bundled examples into the folder, not yet approved.
+	InstallExampleExtension(context.Context, *connect.Request[gen.InstallExampleExtensionRequest]) (*connect.Response[gen.Extensions], error)
+	// Owner only. Opens one panel of a running extension: the address of its
+	// sandboxed page on the extension content origin, and the credential the
+	// app's bridge calls the Runner with for it, which admits its approved
+	// grants alone and is revoked when they change.
+	OpenExtensionPanel(context.Context, *connect.Request[gen.OpenExtensionPanelRequest]) (*connect.Response[gen.ExtensionPanelSession], error)
+	// Agents ask for a repository instead of reaching outside their workspace
+	// (WORKSPACES.md, "When an agent needs another repository"). An agent
+	// credential may list its own execution's workspace repositories, ask to
+	// add one to that workspace and wait for the person's answer: it can never
+	// add one. Adding is the owner's PrepareWorkspace, with
+	// repository_request_id; declining is DeclineRepositoryRequest.
+	ListWorkspaceRepositories(context.Context, *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error)
+	// Matches the query against the repository catalog and records a pending
+	// request on the asking conversation; adds nothing.
+	RequestRepository(context.Context, *connect.Request[gen.RequestRepositoryRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Owner only. Declines a request; the agent is told the reason.
+	DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error)
+	// Agents ask the person to start a conversation (docs/guides/orchestrator.md,
+	// "Ask an agent to start another conversation"). An agent credential may
+	// ask for its own execution and wait for its own requests: it never starts
+	// one. The request waits in the asking conversation like an approval; the
+	// person starts it (as asked, or edited) or declines it. A conversation
+	// that holds an Orchestrator grant in force starts the agent at once, as
+	// SpawnAgent does, under that grant.
+	RequestConversationStart(context.Context, *connect.Request[gen.RequestConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// Waits, at most timeout_seconds (bounded), for the person's answer.
+	WaitConversationStart(context.Context, *connect.Request[gen.WaitConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// The person's answer: start (with their edits) or decline. A paired phone
+	// that may respond answers it, without changing the agent or workspace.
+	AnswerConversationStart(context.Context, *connect.Request[gen.AnswerConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error)
+	// The agent browser (BROWSER.md): a Runner-owned Chromium that an agent
+	// drives through its browser_* tools and the person watches beside the
+	// chat. Every RPC below is the owner's. An agent reaches only its own
+	// conversation's browser, and only through the tool pipe of its own
+	// execution, never with a credential.
+	//
+	// Follows one conversation's browser: its state and recent action log
+	// first, then live frames (only while someone watches), actions and state.
+	WatchBrowser(context.Context, *connect.Request[gen.WatchBrowserRequest], *connect.ServerStream[gen.BrowserEvent]) error
+	// Take over / Give back / Stop / Let the agent browse again, browse freely,
+	// and the person's own navigation while they hold the browser.
+	ControlBrowser(context.Context, *connect.Request[gen.ControlBrowserRequest]) (*connect.Response[gen.BrowserState], error)
+	// The person's mouse and keyboard while they hold the browser (Take over).
+	SendBrowserInput(context.Context, *connect.Request[gen.BrowserInputRequest]) (*connect.Response[gen.BrowserState], error)
+	// Answers a site, download or sign-in request the agent's browsing raised.
+	DecideBrowserRequest(context.Context, *connect.Request[gen.DecideBrowserRequestRequest]) (*connect.Response[gen.BrowserState], error)
+	// Settings → Browser.
+	GetBrowserSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.BrowserSettings], error)
+	SaveBrowserSettings(context.Context, *connect.Request[gen.BrowserSettings]) (*connect.Response[gen.BrowserSettings], error)
+	// Closes a workspace's agent browsers and deletes its browser profile
+	// (cookies, storage, cache) and its always-allowed sites.
+	ClearBrowserData(context.Context, *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error)
+	// Installs the Chromium the agent browser runs, in a developer build whose
+	// Chromium is missing (BrowserSettings.installable), as a command whose
+	// output Settings → Browser shows. One at a time: a second call returns the
+	// install already running.
+	InstallBrowser(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.CommandStatus], error)
 }
 
 // NewRunnerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -1154,6 +4297,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("PrepareWorkspace")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceListRepositoryBranchesHandler := connect.NewUnaryHandler(
+		RunnerServiceListRepositoryBranchesProcedure,
+		svc.ListRepositoryBranches,
+		connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryBranches")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRefreshRepositoryIdentityHandler := connect.NewUnaryHandler(
+		RunnerServiceRefreshRepositoryIdentityProcedure,
+		svc.RefreshRepositoryIdentity,
+		connect.WithSchema(runnerServiceMethods.ByName("RefreshRepositoryIdentity")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceVersionHandler := connect.NewUnaryHandler(
 		RunnerServiceVersionProcedure,
 		svc.Version,
@@ -1178,10 +4333,52 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("SetModelPrice")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceGetClaudeAuthHandler := connect.NewUnaryHandler(
+		RunnerServiceGetClaudeAuthProcedure,
+		svc.GetClaudeAuth,
+		connect.WithSchema(runnerServiceMethods.ByName("GetClaudeAuth")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetClaudeApiKeyHandler := connect.NewUnaryHandler(
+		RunnerServiceSetClaudeApiKeyProcedure,
+		svc.SetClaudeApiKey,
+		connect.WithSchema(runnerServiceMethods.ByName("SetClaudeApiKey")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListThemesHandler := connect.NewUnaryHandler(
+		RunnerServiceListThemesProcedure,
+		svc.ListThemes,
+		connect.WithSchema(runnerServiceMethods.ByName("ListThemes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCreateThemeHandler := connect.NewUnaryHandler(
+		RunnerServiceCreateThemeProcedure,
+		svc.CreateTheme,
+		connect.WithSchema(runnerServiceMethods.ByName("CreateTheme")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceInfoHandler := connect.NewUnaryHandler(
 		RunnerServiceInfoProcedure,
 		svc.Info,
 		connect.WithSchema(runnerServiceMethods.ByName("Info")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetProviderAvailabilityHandler := connect.NewUnaryHandler(
+		RunnerServiceGetProviderAvailabilityProcedure,
+		svc.GetProviderAvailability,
+		connect.WithSchema(runnerServiceMethods.ByName("GetProviderAvailability")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSaveAcpAgentHandler := connect.NewUnaryHandler(
+		RunnerServiceSaveAcpAgentProcedure,
+		svc.SaveAcpAgent,
+		connect.WithSchema(runnerServiceMethods.ByName("SaveAcpAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRemoveAcpAgentHandler := connect.NewUnaryHandler(
+		RunnerServiceRemoveAcpAgentProcedure,
+		svc.RemoveAcpAgent,
+		connect.WithSchema(runnerServiceMethods.ByName("RemoveAcpAgent")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceGetTelemetryHandler := connect.NewUnaryHandler(
@@ -1218,6 +4415,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceRefreshSubscriptionProcedure,
 		svc.RefreshSubscription,
 		connect.WithSchema(runnerServiceMethods.ByName("RefreshSubscription")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRemoveSubscriptionHandler := connect.NewUnaryHandler(
+		RunnerServiceRemoveSubscriptionProcedure,
+		svc.RemoveSubscription,
+		connect.WithSchema(runnerServiceMethods.ByName("RemoveSubscription")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceGetGitHubConnectionHandler := connect.NewUnaryHandler(
@@ -1298,6 +4501,30 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ListGitHubItems")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceSearchItemsHandler := connect.NewUnaryHandler(
+		RunnerServiceSearchItemsProcedure,
+		svc.SearchItems,
+		connect.WithSchema(runnerServiceMethods.ByName("SearchItems")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetItemHandler := connect.NewUnaryHandler(
+		RunnerServiceGetItemProcedure,
+		svc.GetItem,
+		connect.WithSchema(runnerServiceMethods.ByName("GetItem")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceResolveItemUrlHandler := connect.NewUnaryHandler(
+		RunnerServiceResolveItemUrlProcedure,
+		svc.ResolveItemUrl,
+		connect.WithSchema(runnerServiceMethods.ByName("ResolveItemUrl")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceFindItemWorkspacesHandler := connect.NewUnaryHandler(
+		RunnerServiceFindItemWorkspacesProcedure,
+		svc.FindItemWorkspaces,
+		connect.WithSchema(runnerServiceMethods.ByName("FindItemWorkspaces")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceAddLocalRepositoryHandler := connect.NewUnaryHandler(
 		RunnerServiceAddLocalRepositoryProcedure,
 		svc.AddLocalRepository,
@@ -1314,6 +4541,30 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceRemoveRepositoryProcedure,
 		svc.RemoveRepository,
 		connect.WithSchema(runnerServiceMethods.ByName("RemoveRepository")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListRepositoryHomesHandler := connect.NewUnaryHandler(
+		RunnerServiceListRepositoryHomesProcedure,
+		svc.ListRepositoryHomes,
+		connect.WithSchema(runnerServiceMethods.ByName("ListRepositoryHomes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetRepositoryHomeHandler := connect.NewUnaryHandler(
+		RunnerServiceSetRepositoryHomeProcedure,
+		svc.SetRepositoryHome,
+		connect.WithSchema(runnerServiceMethods.ByName("SetRepositoryHome")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceOpenRepositoryHomeHandler := connect.NewUnaryHandler(
+		RunnerServiceOpenRepositoryHomeProcedure,
+		svc.OpenRepositoryHome,
+		connect.WithSchema(runnerServiceMethods.ByName("OpenRepositoryHome")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateRepositoryHomeHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateRepositoryHomeProcedure,
+		svc.UpdateRepositoryHome,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateRepositoryHome")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceCreateCollectionHandler := connect.NewUnaryHandler(
@@ -1340,6 +4591,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ListCollections")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceArrangeWorkspacesHandler := connect.NewUnaryHandler(
+		RunnerServiceArrangeWorkspacesProcedure,
+		svc.ArrangeWorkspaces,
+		connect.WithSchema(runnerServiceMethods.ByName("ArrangeWorkspaces")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceArchiveCollectionHandler := connect.NewUnaryHandler(
 		RunnerServiceArchiveCollectionProcedure,
 		svc.ArchiveCollection,
@@ -1350,6 +4607,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceReconcileCollectionProcedure,
 		svc.ReconcileCollection,
 		connect.WithSchema(runnerServiceMethods.ByName("ReconcileCollection")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetOwnershipHandler := connect.NewUnaryHandler(
+		RunnerServiceGetOwnershipProcedure,
+		svc.GetOwnership,
+		connect.WithSchema(runnerServiceMethods.ByName("GetOwnership")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceResolveOwnershipHandler := connect.NewUnaryHandler(
+		RunnerServiceResolveOwnershipProcedure,
+		svc.ResolveOwnership,
+		connect.WithSchema(runnerServiceMethods.ByName("ResolveOwnership")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceOpenSessionHandler := connect.NewUnaryHandler(
@@ -1368,6 +4637,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceRenameConversationProcedure,
 		svc.RenameConversation,
 		connect.WithSchema(runnerServiceMethods.ByName("RenameConversation")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePinConversationHandler := connect.NewUnaryHandler(
+		RunnerServicePinConversationProcedure,
+		svc.PinConversation,
+		connect.WithSchema(runnerServiceMethods.ByName("PinConversation")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceArchiveConversationHandler := connect.NewUnaryHandler(
+		RunnerServiceArchiveConversationProcedure,
+		svc.ArchiveConversation,
+		connect.WithSchema(runnerServiceMethods.ByName("ArchiveConversation")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceListWorkspaceChangesHandler := connect.NewUnaryHandler(
@@ -1394,6 +4675,18 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceFile")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceSearchWorkspaceFilesHandler := connect.NewUnaryHandler(
+		RunnerServiceSearchWorkspaceFilesProcedure,
+		svc.SearchWorkspaceFiles,
+		connect.WithSchema(runnerServiceMethods.ByName("SearchWorkspaceFiles")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceResolveWorkspacePathHandler := connect.NewUnaryHandler(
+		RunnerServiceResolveWorkspacePathProcedure,
+		svc.ResolveWorkspacePath,
+		connect.WithSchema(runnerServiceMethods.ByName("ResolveWorkspacePath")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceListHistoryHandler := connect.NewUnaryHandler(
 		RunnerServiceListHistoryProcedure,
 		svc.ListHistory,
@@ -1406,6 +4699,36 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ResumeSession")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceRestartWithPermissionHandler := connect.NewUnaryHandler(
+		RunnerServiceRestartWithPermissionProcedure,
+		svc.RestartWithPermission,
+		connect.WithSchema(runnerServiceMethods.ByName("RestartWithPermission")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRestartWithModelHandler := connect.NewUnaryHandler(
+		RunnerServiceRestartWithModelProcedure,
+		svc.RestartWithModel,
+		connect.WithSchema(runnerServiceMethods.ByName("RestartWithModel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGiveBrowserHandler := connect.NewUnaryHandler(
+		RunnerServiceGiveBrowserProcedure,
+		svc.GiveBrowser,
+		connect.WithSchema(runnerServiceMethods.ByName("GiveBrowser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSwitchSubscriptionHandler := connect.NewUnaryHandler(
+		RunnerServiceSwitchSubscriptionProcedure,
+		svc.SwitchSubscription,
+		connect.WithSchema(runnerServiceMethods.ByName("SwitchSubscription")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetSessionRotationHandler := connect.NewUnaryHandler(
+		RunnerServiceSetSessionRotationProcedure,
+		svc.SetSessionRotation,
+		connect.WithSchema(runnerServiceMethods.ByName("SetSessionRotation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceGetSessionHandler := connect.NewUnaryHandler(
 		RunnerServiceGetSessionProcedure,
 		svc.GetSession,
@@ -1416,6 +4739,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		RunnerServiceApplyProcedure,
 		svc.Apply,
 		connect.WithSchema(runnerServiceMethods.ByName("Apply")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceReadAttachmentHandler := connect.NewUnaryHandler(
+		RunnerServiceReadAttachmentProcedure,
+		svc.ReadAttachment,
+		connect.WithSchema(runnerServiceMethods.ByName("ReadAttachment")),
 		connect.WithHandlerOptions(opts...),
 	)
 	runnerServiceCloseSessionHandler := connect.NewUnaryHandler(
@@ -1460,6 +4789,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("WatchEvents")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceReadSessionTailHandler := connect.NewUnaryHandler(
+		RunnerServiceReadSessionTailProcedure,
+		svc.ReadSessionTail,
+		connect.WithSchema(runnerServiceMethods.ByName("ReadSessionTail")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceStartCommandHandler := connect.NewUnaryHandler(
 		RunnerServiceStartCommandProcedure,
 		svc.StartCommand,
@@ -1490,6 +4825,12 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("ListCommands")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceClaimCommandShareHandler := connect.NewUnaryHandler(
+		RunnerServiceClaimCommandShareProcedure,
+		svc.ClaimCommandShare,
+		connect.WithSchema(runnerServiceMethods.ByName("ClaimCommandShare")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceReadCommandHandler := connect.NewUnaryHandler(
 		RunnerServiceReadCommandProcedure,
 		svc.ReadCommand,
@@ -1508,10 +4849,712 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(runnerServiceMethods.ByName("CancelCommand")),
 		connect.WithHandlerOptions(opts...),
 	)
+	runnerServiceBackgroundCommandHandler := connect.NewUnaryHandler(
+		RunnerServiceBackgroundCommandProcedure,
+		svc.BackgroundCommand,
+		connect.WithSchema(runnerServiceMethods.ByName("BackgroundCommand")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceFollowPipeHandler := connect.NewUnaryHandler(
+		RunnerServiceFollowPipeProcedure,
+		svc.FollowPipe,
+		connect.WithSchema(runnerServiceMethods.ByName("FollowPipe")),
+		connect.WithHandlerOptions(opts...),
+	)
 	runnerServiceWatchOutputHandler := connect.NewServerStreamHandler(
 		RunnerServiceWatchOutputProcedure,
 		svc.WatchOutput,
 		connect.WithSchema(runnerServiceMethods.ByName("WatchOutput")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceOpenTerminalHandler := connect.NewUnaryHandler(
+		RunnerServiceOpenTerminalProcedure,
+		svc.OpenTerminal,
+		connect.WithSchema(runnerServiceMethods.ByName("OpenTerminal")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListTerminalsHandler := connect.NewUnaryHandler(
+		RunnerServiceListTerminalsProcedure,
+		svc.ListTerminals,
+		connect.WithSchema(runnerServiceMethods.ByName("ListTerminals")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWatchTerminalHandler := connect.NewServerStreamHandler(
+		RunnerServiceWatchTerminalProcedure,
+		svc.WatchTerminal,
+		connect.WithSchema(runnerServiceMethods.ByName("WatchTerminal")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWriteTerminalHandler := connect.NewUnaryHandler(
+		RunnerServiceWriteTerminalProcedure,
+		svc.WriteTerminal,
+		connect.WithSchema(runnerServiceMethods.ByName("WriteTerminal")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceResizeTerminalHandler := connect.NewUnaryHandler(
+		RunnerServiceResizeTerminalProcedure,
+		svc.ResizeTerminal,
+		connect.WithSchema(runnerServiceMethods.ByName("ResizeTerminal")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCloseTerminalHandler := connect.NewUnaryHandler(
+		RunnerServiceCloseTerminalProcedure,
+		svc.CloseTerminal,
+		connect.WithSchema(runnerServiceMethods.ByName("CloseTerminal")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRestartRunnerHandler := connect.NewUnaryHandler(
+		RunnerServiceRestartRunnerProcedure,
+		svc.RestartRunner,
+		connect.WithSchema(runnerServiceMethods.ByName("RestartRunner")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCommitWorkspaceChangesHandler := connect.NewUnaryHandler(
+		RunnerServiceCommitWorkspaceChangesProcedure,
+		svc.CommitWorkspaceChanges,
+		connect.WithSchema(runnerServiceMethods.ByName("CommitWorkspaceChanges")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePushWorkspaceBranchHandler := connect.NewUnaryHandler(
+		RunnerServicePushWorkspaceBranchProcedure,
+		svc.PushWorkspaceBranch,
+		connect.WithSchema(runnerServiceMethods.ByName("PushWorkspaceBranch")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCreatePullRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceCreatePullRequestProcedure,
+		svc.CreatePullRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("CreatePullRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetPullRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceGetPullRequestProcedure,
+		svc.GetPullRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("GetPullRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceMergePullRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceMergePullRequestProcedure,
+		svc.MergePullRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("MergePullRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListWorkspaceGitSummariesHandler := connect.NewUnaryHandler(
+		RunnerServiceListWorkspaceGitSummariesProcedure,
+		svc.ListWorkspaceGitSummaries,
+		connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceGitSummaries")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListLinksHandler := connect.NewUnaryHandler(
+		RunnerServiceListLinksProcedure,
+		svc.ListLinks,
+		connect.WithSchema(runnerServiceMethods.ByName("ListLinks")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceLinkItemHandler := connect.NewUnaryHandler(
+		RunnerServiceLinkItemProcedure,
+		svc.LinkItem,
+		connect.WithSchema(runnerServiceMethods.ByName("LinkItem")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUnlinkItemHandler := connect.NewUnaryHandler(
+		RunnerServiceUnlinkItemProcedure,
+		svc.UnlinkItem,
+		connect.WithSchema(runnerServiceMethods.ByName("UnlinkItem")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSendPullRequestFailuresHandler := connect.NewUnaryHandler(
+		RunnerServiceSendPullRequestFailuresProcedure,
+		svc.SendPullRequestFailures,
+		connect.WithSchema(runnerServiceMethods.ByName("SendPullRequestFailures")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceImportPullRequestReviewHandler := connect.NewUnaryHandler(
+		RunnerServiceImportPullRequestReviewProcedure,
+		svc.ImportPullRequestReview,
+		connect.WithSchema(runnerServiceMethods.ByName("ImportPullRequestReview")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListReviewCommentsHandler := connect.NewUnaryHandler(
+		RunnerServiceListReviewCommentsProcedure,
+		svc.ListReviewComments,
+		connect.WithSchema(runnerServiceMethods.ByName("ListReviewComments")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceAddReviewCommentHandler := connect.NewUnaryHandler(
+		RunnerServiceAddReviewCommentProcedure,
+		svc.AddReviewComment,
+		connect.WithSchema(runnerServiceMethods.ByName("AddReviewComment")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceEditReviewCommentHandler := connect.NewUnaryHandler(
+		RunnerServiceEditReviewCommentProcedure,
+		svc.EditReviewComment,
+		connect.WithSchema(runnerServiceMethods.ByName("EditReviewComment")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceDeleteReviewCommentHandler := connect.NewUnaryHandler(
+		RunnerServiceDeleteReviewCommentProcedure,
+		svc.DeleteReviewComment,
+		connect.WithSchema(runnerServiceMethods.ByName("DeleteReviewComment")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetReviewDispositionHandler := connect.NewUnaryHandler(
+		RunnerServiceSetReviewDispositionProcedure,
+		svc.SetReviewDisposition,
+		connect.WithSchema(runnerServiceMethods.ByName("SetReviewDisposition")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetReviewAutoResolveHandler := connect.NewUnaryHandler(
+		RunnerServiceSetReviewAutoResolveProcedure,
+		svc.SetReviewAutoResolve,
+		connect.WithSchema(runnerServiceMethods.ByName("SetReviewAutoResolve")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceStartReviewHandler := connect.NewUnaryHandler(
+		RunnerServiceStartReviewProcedure,
+		svc.StartReview,
+		connect.WithSchema(runnerServiceMethods.ByName("StartReview")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceAddReviewFindingHandler := connect.NewUnaryHandler(
+		RunnerServiceAddReviewFindingProcedure,
+		svc.AddReviewFinding,
+		connect.WithSchema(runnerServiceMethods.ByName("AddReviewFinding")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListReviewFindingsHandler := connect.NewUnaryHandler(
+		RunnerServiceListReviewFindingsProcedure,
+		svc.ListReviewFindings,
+		connect.WithSchema(runnerServiceMethods.ByName("ListReviewFindings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetReviewFindingStateHandler := connect.NewUnaryHandler(
+		RunnerServiceSetReviewFindingStateProcedure,
+		svc.SetReviewFindingState,
+		connect.WithSchema(runnerServiceMethods.ByName("SetReviewFindingState")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateReviewRunHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateReviewRunProcedure,
+		svc.UpdateReviewRun,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateReviewRun")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCancelReviewHandler := connect.NewUnaryHandler(
+		RunnerServiceCancelReviewProcedure,
+		svc.CancelReview,
+		connect.WithSchema(runnerServiceMethods.ByName("CancelReview")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceAskAgentHandler := connect.NewUnaryHandler(
+		RunnerServiceAskAgentProcedure,
+		svc.AskAgent,
+		connect.WithSchema(runnerServiceMethods.ByName("AskAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitAgentAskHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitAgentAskProcedure,
+		svc.WaitAgentAsk,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitAgentAsk")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListProcessesHandler := connect.NewUnaryHandler(
+		RunnerServiceListProcessesProcedure,
+		svc.ListProcesses,
+		connect.WithSchema(runnerServiceMethods.ByName("ListProcesses")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceStopProcessHandler := connect.NewUnaryHandler(
+		RunnerServiceStopProcessProcedure,
+		svc.StopProcess,
+		connect.WithSchema(runnerServiceMethods.ByName("StopProcess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCleanUpOrphanProcessesHandler := connect.NewUnaryHandler(
+		RunnerServiceCleanUpOrphanProcessesProcedure,
+		svc.CleanUpOrphanProcesses,
+		connect.WithSchema(runnerServiceMethods.ByName("CleanUpOrphanProcesses")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetOrchestrationProcessHandler := connect.NewUnaryHandler(
+		RunnerServiceGetOrchestrationProcessProcedure,
+		svc.GetOrchestrationProcess,
+		connect.WithSchema(runnerServiceMethods.ByName("GetOrchestrationProcess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceExplainOrchestrationProcessHandler := connect.NewUnaryHandler(
+		RunnerServiceExplainOrchestrationProcessProcedure,
+		svc.ExplainOrchestrationProcess,
+		connect.WithSchema(runnerServiceMethods.ByName("ExplainOrchestrationProcess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListTurnCheckpointsHandler := connect.NewUnaryHandler(
+		RunnerServiceListTurnCheckpointsProcedure,
+		svc.ListTurnCheckpoints,
+		connect.WithSchema(runnerServiceMethods.ByName("ListTurnCheckpoints")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListTurnChangesHandler := connect.NewUnaryHandler(
+		RunnerServiceListTurnChangesProcedure,
+		svc.ListTurnChanges,
+		connect.WithSchema(runnerServiceMethods.ByName("ListTurnChanges")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceReadTurnDiffHandler := connect.NewUnaryHandler(
+		RunnerServiceReadTurnDiffProcedure,
+		svc.ReadTurnDiff,
+		connect.WithSchema(runnerServiceMethods.ByName("ReadTurnDiff")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePreviewRevertCodeHandler := connect.NewUnaryHandler(
+		RunnerServicePreviewRevertCodeProcedure,
+		svc.PreviewRevertCode,
+		connect.WithSchema(runnerServiceMethods.ByName("PreviewRevertCode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRevertCodeHandler := connect.NewUnaryHandler(
+		RunnerServiceRevertCodeProcedure,
+		svc.RevertCode,
+		connect.WithSchema(runnerServiceMethods.ByName("RevertCode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUndoRevertCodeHandler := connect.NewUnaryHandler(
+		RunnerServiceUndoRevertCodeProcedure,
+		svc.UndoRevertCode,
+		connect.WithSchema(runnerServiceMethods.ByName("UndoRevertCode")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetWorkspaceRuntimeHandler := connect.NewUnaryHandler(
+		RunnerServiceGetWorkspaceRuntimeProcedure,
+		svc.GetWorkspaceRuntime,
+		connect.WithSchema(runnerServiceMethods.ByName("GetWorkspaceRuntime")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceApproveWorkspaceScriptsHandler := connect.NewUnaryHandler(
+		RunnerServiceApproveWorkspaceScriptsProcedure,
+		svc.ApproveWorkspaceScripts,
+		connect.WithSchema(runnerServiceMethods.ByName("ApproveWorkspaceScripts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceStartWorkspaceActionHandler := connect.NewUnaryHandler(
+		RunnerServiceStartWorkspaceActionProcedure,
+		svc.StartWorkspaceAction,
+		connect.WithSchema(runnerServiceMethods.ByName("StartWorkspaceAction")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceStopWorkspaceActionHandler := connect.NewUnaryHandler(
+		RunnerServiceStopWorkspaceActionProcedure,
+		svc.StopWorkspaceAction,
+		connect.WithSchema(runnerServiceMethods.ByName("StopWorkspaceAction")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRunWorkspaceSetupHandler := connect.NewUnaryHandler(
+		RunnerServiceRunWorkspaceSetupProcedure,
+		svc.RunWorkspaceSetup,
+		connect.WithSchema(runnerServiceMethods.ByName("RunWorkspaceSetup")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetWorkspaceRuntimeSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceGetWorkspaceRuntimeSettingsProcedure,
+		svc.GetWorkspaceRuntimeSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("GetWorkspaceRuntimeSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSaveWorkspaceRuntimeSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceSaveWorkspaceRuntimeSettingsProcedure,
+		svc.SaveWorkspaceRuntimeSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("SaveWorkspaceRuntimeSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetRemoteAccessHandler := connect.NewUnaryHandler(
+		RunnerServiceGetRemoteAccessProcedure,
+		svc.GetRemoteAccess,
+		connect.WithSchema(runnerServiceMethods.ByName("GetRemoteAccess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetRemoteAccessHandler := connect.NewUnaryHandler(
+		RunnerServiceSetRemoteAccessProcedure,
+		svc.SetRemoteAccess,
+		connect.WithSchema(runnerServiceMethods.ByName("SetRemoteAccess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceBeginDevicePairingHandler := connect.NewUnaryHandler(
+		RunnerServiceBeginDevicePairingProcedure,
+		svc.BeginDevicePairing,
+		connect.WithSchema(runnerServiceMethods.ByName("BeginDevicePairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetDevicePairingHandler := connect.NewUnaryHandler(
+		RunnerServiceGetDevicePairingProcedure,
+		svc.GetDevicePairing,
+		connect.WithSchema(runnerServiceMethods.ByName("GetDevicePairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCancelDevicePairingHandler := connect.NewUnaryHandler(
+		RunnerServiceCancelDevicePairingProcedure,
+		svc.CancelDevicePairing,
+		connect.WithSchema(runnerServiceMethods.ByName("CancelDevicePairing")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListDevicesHandler := connect.NewUnaryHandler(
+		RunnerServiceListDevicesProcedure,
+		svc.ListDevices,
+		connect.WithSchema(runnerServiceMethods.ByName("ListDevices")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRevokeDeviceHandler := connect.NewUnaryHandler(
+		RunnerServiceRevokeDeviceProcedure,
+		svc.RevokeDevice,
+		connect.WithSchema(runnerServiceMethods.ByName("RevokeDevice")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetPushSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceGetPushSettingsProcedure,
+		svc.GetPushSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("GetPushSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetPushSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceSetPushSettingsProcedure,
+		svc.SetPushSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("SetPushSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSendTestPushHandler := connect.NewUnaryHandler(
+		RunnerServiceSendTestPushProcedure,
+		svc.SendTestPush,
+		connect.WithSchema(runnerServiceMethods.ByName("SendTestPush")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListMissionsHandler := connect.NewUnaryHandler(
+		RunnerServiceListMissionsProcedure,
+		svc.ListMissions,
+		connect.WithSchema(runnerServiceMethods.ByName("ListMissions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetMissionHandler := connect.NewUnaryHandler(
+		RunnerServiceGetMissionProcedure,
+		svc.GetMission,
+		connect.WithSchema(runnerServiceMethods.ByName("GetMission")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCreateMissionHandler := connect.NewUnaryHandler(
+		RunnerServiceCreateMissionProcedure,
+		svc.CreateMission,
+		connect.WithSchema(runnerServiceMethods.ByName("CreateMission")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateMissionHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateMissionProcedure,
+		svc.UpdateMission,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateMission")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListPromptHistoryHandler := connect.NewUnaryHandler(
+		RunnerServiceListPromptHistoryProcedure,
+		svc.ListPromptHistory,
+		connect.WithSchema(runnerServiceMethods.ByName("ListPromptHistory")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSpawnAgentHandler := connect.NewUnaryHandler(
+		RunnerServiceSpawnAgentProcedure,
+		svc.SpawnAgent,
+		connect.WithSchema(runnerServiceMethods.ByName("SpawnAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListAgentLineageHandler := connect.NewUnaryHandler(
+		RunnerServiceListAgentLineageProcedure,
+		svc.ListAgentLineage,
+		connect.WithSchema(runnerServiceMethods.ByName("ListAgentLineage")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSendAgentMessageHandler := connect.NewUnaryHandler(
+		RunnerServiceSendAgentMessageProcedure,
+		svc.SendAgentMessage,
+		connect.WithSchema(runnerServiceMethods.ByName("SendAgentMessage")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitAgentsHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitAgentsProcedure,
+		svc.WaitAgents,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitAgents")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceStopChildAgentHandler := connect.NewUnaryHandler(
+		RunnerServiceStopChildAgentProcedure,
+		svc.StopChildAgent,
+		connect.WithSchema(runnerServiceMethods.ByName("StopChildAgent")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceReportAgentTaskHandler := connect.NewUnaryHandler(
+		RunnerServiceReportAgentTaskProcedure,
+		svc.ReportAgentTask,
+		connect.WithSchema(runnerServiceMethods.ByName("ReportAgentTask")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceProposePlanHandler := connect.NewUnaryHandler(
+		RunnerServiceProposePlanProcedure,
+		svc.ProposePlan,
+		connect.WithSchema(runnerServiceMethods.ByName("ProposePlan")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceClaimLeaseHandler := connect.NewUnaryHandler(
+		RunnerServiceClaimLeaseProcedure,
+		svc.ClaimLease,
+		connect.WithSchema(runnerServiceMethods.ByName("ClaimLease")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceReleaseLeaseHandler := connect.NewUnaryHandler(
+		RunnerServiceReleaseLeaseProcedure,
+		svc.ReleaseLease,
+		connect.WithSchema(runnerServiceMethods.ByName("ReleaseLease")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListLeasesHandler := connect.NewUnaryHandler(
+		RunnerServiceListLeasesProcedure,
+		svc.ListLeases,
+		connect.WithSchema(runnerServiceMethods.ByName("ListLeases")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListArtifactsHandler := connect.NewUnaryHandler(
+		RunnerServiceListArtifactsProcedure,
+		svc.ListArtifacts,
+		connect.WithSchema(runnerServiceMethods.ByName("ListArtifacts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetArtifactHandler := connect.NewUnaryHandler(
+		RunnerServiceGetArtifactProcedure,
+		svc.GetArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("GetArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePutArtifactHandler := connect.NewUnaryHandler(
+		RunnerServicePutArtifactProcedure,
+		svc.PutArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("PutArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceTrackArtifactFileHandler := connect.NewUnaryHandler(
+		RunnerServiceTrackArtifactFileProcedure,
+		svc.TrackArtifactFile,
+		connect.WithSchema(runnerServiceMethods.ByName("TrackArtifactFile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateArtifactHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateArtifactProcedure,
+		svc.UpdateArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceDeleteArtifactHandler := connect.NewUnaryHandler(
+		RunnerServiceDeleteArtifactProcedure,
+		svc.DeleteArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("DeleteArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRetireArtifactHandler := connect.NewUnaryHandler(
+		RunnerServiceRetireArtifactProcedure,
+		svc.RetireArtifact,
+		connect.WithSchema(runnerServiceMethods.ByName("RetireArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSaveArtifactToRepositoryHandler := connect.NewUnaryHandler(
+		RunnerServiceSaveArtifactToRepositoryProcedure,
+		svc.SaveArtifactToRepository,
+		connect.WithSchema(runnerServiceMethods.ByName("SaveArtifactToRepository")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCreateArtifactIssueHandler := connect.NewUnaryHandler(
+		RunnerServiceCreateArtifactIssueProcedure,
+		svc.CreateArtifactIssue,
+		connect.WithSchema(runnerServiceMethods.ByName("CreateArtifactIssue")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetUserActionsHandler := connect.NewUnaryHandler(
+		RunnerServiceGetUserActionsProcedure,
+		svc.GetUserActions,
+		connect.WithSchema(runnerServiceMethods.ByName("GetUserActions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceInitUserActionsHandler := connect.NewUnaryHandler(
+		RunnerServiceInitUserActionsProcedure,
+		svc.InitUserActions,
+		connect.WithSchema(runnerServiceMethods.ByName("InitUserActions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListHookRunsHandler := connect.NewUnaryHandler(
+		RunnerServiceListHookRunsProcedure,
+		svc.ListHookRuns,
+		connect.WithSchema(runnerServiceMethods.ByName("ListHookRuns")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceTestHookHandler := connect.NewUnaryHandler(
+		RunnerServiceTestHookProcedure,
+		svc.TestHook,
+		connect.WithSchema(runnerServiceMethods.ByName("TestHook")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServicePostUiRequestHandler := connect.NewUnaryHandler(
+		RunnerServicePostUiRequestProcedure,
+		svc.PostUiRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("PostUiRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitUiRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitUiRequestProcedure,
+		svc.WaitUiRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitUiRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWatchUiRequestsHandler := connect.NewServerStreamHandler(
+		RunnerServiceWatchUiRequestsProcedure,
+		svc.WatchUiRequests,
+		connect.WithSchema(runnerServiceMethods.ByName("WatchUiRequests")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceCompleteUiRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceCompleteUiRequestProcedure,
+		svc.CompleteUiRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("CompleteUiRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetConfigFilesHandler := connect.NewUnaryHandler(
+		RunnerServiceGetConfigFilesProcedure,
+		svc.GetConfigFiles,
+		connect.WithSchema(runnerServiceMethods.ByName("GetConfigFiles")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceUpdateConfigFileHandler := connect.NewUnaryHandler(
+		RunnerServiceUpdateConfigFileProcedure,
+		svc.UpdateConfigFile,
+		connect.WithSchema(runnerServiceMethods.ByName("UpdateConfigFile")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListExtensionsHandler := connect.NewUnaryHandler(
+		RunnerServiceListExtensionsProcedure,
+		svc.ListExtensions,
+		connect.WithSchema(runnerServiceMethods.ByName("ListExtensions")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceApproveExtensionHandler := connect.NewUnaryHandler(
+		RunnerServiceApproveExtensionProcedure,
+		svc.ApproveExtension,
+		connect.WithSchema(runnerServiceMethods.ByName("ApproveExtension")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSetExtensionEnabledHandler := connect.NewUnaryHandler(
+		RunnerServiceSetExtensionEnabledProcedure,
+		svc.SetExtensionEnabled,
+		connect.WithSchema(runnerServiceMethods.ByName("SetExtensionEnabled")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRemoveExtensionHandler := connect.NewUnaryHandler(
+		RunnerServiceRemoveExtensionProcedure,
+		svc.RemoveExtension,
+		connect.WithSchema(runnerServiceMethods.ByName("RemoveExtension")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceInstallExampleExtensionHandler := connect.NewUnaryHandler(
+		RunnerServiceInstallExampleExtensionProcedure,
+		svc.InstallExampleExtension,
+		connect.WithSchema(runnerServiceMethods.ByName("InstallExampleExtension")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceOpenExtensionPanelHandler := connect.NewUnaryHandler(
+		RunnerServiceOpenExtensionPanelProcedure,
+		svc.OpenExtensionPanel,
+		connect.WithSchema(runnerServiceMethods.ByName("OpenExtensionPanel")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceListWorkspaceRepositoriesHandler := connect.NewUnaryHandler(
+		RunnerServiceListWorkspaceRepositoriesProcedure,
+		svc.ListWorkspaceRepositories,
+		connect.WithSchema(runnerServiceMethods.ByName("ListWorkspaceRepositories")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRequestRepositoryHandler := connect.NewUnaryHandler(
+		RunnerServiceRequestRepositoryProcedure,
+		svc.RequestRepository,
+		connect.WithSchema(runnerServiceMethods.ByName("RequestRepository")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitRepositoryRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitRepositoryRequestProcedure,
+		svc.WaitRepositoryRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitRepositoryRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceDeclineRepositoryRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceDeclineRepositoryRequestProcedure,
+		svc.DeclineRepositoryRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("DeclineRepositoryRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceRequestConversationStartHandler := connect.NewUnaryHandler(
+		RunnerServiceRequestConversationStartProcedure,
+		svc.RequestConversationStart,
+		connect.WithSchema(runnerServiceMethods.ByName("RequestConversationStart")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWaitConversationStartHandler := connect.NewUnaryHandler(
+		RunnerServiceWaitConversationStartProcedure,
+		svc.WaitConversationStart,
+		connect.WithSchema(runnerServiceMethods.ByName("WaitConversationStart")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceAnswerConversationStartHandler := connect.NewUnaryHandler(
+		RunnerServiceAnswerConversationStartProcedure,
+		svc.AnswerConversationStart,
+		connect.WithSchema(runnerServiceMethods.ByName("AnswerConversationStart")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceWatchBrowserHandler := connect.NewServerStreamHandler(
+		RunnerServiceWatchBrowserProcedure,
+		svc.WatchBrowser,
+		connect.WithSchema(runnerServiceMethods.ByName("WatchBrowser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceControlBrowserHandler := connect.NewUnaryHandler(
+		RunnerServiceControlBrowserProcedure,
+		svc.ControlBrowser,
+		connect.WithSchema(runnerServiceMethods.ByName("ControlBrowser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSendBrowserInputHandler := connect.NewUnaryHandler(
+		RunnerServiceSendBrowserInputProcedure,
+		svc.SendBrowserInput,
+		connect.WithSchema(runnerServiceMethods.ByName("SendBrowserInput")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceDecideBrowserRequestHandler := connect.NewUnaryHandler(
+		RunnerServiceDecideBrowserRequestProcedure,
+		svc.DecideBrowserRequest,
+		connect.WithSchema(runnerServiceMethods.ByName("DecideBrowserRequest")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceGetBrowserSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceGetBrowserSettingsProcedure,
+		svc.GetBrowserSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("GetBrowserSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceSaveBrowserSettingsHandler := connect.NewUnaryHandler(
+		RunnerServiceSaveBrowserSettingsProcedure,
+		svc.SaveBrowserSettings,
+		connect.WithSchema(runnerServiceMethods.ByName("SaveBrowserSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceClearBrowserDataHandler := connect.NewUnaryHandler(
+		RunnerServiceClearBrowserDataProcedure,
+		svc.ClearBrowserData,
+		connect.WithSchema(runnerServiceMethods.ByName("ClearBrowserData")),
+		connect.WithHandlerOptions(opts...),
+	)
+	runnerServiceInstallBrowserHandler := connect.NewUnaryHandler(
+		RunnerServiceInstallBrowserProcedure,
+		svc.InstallBrowser,
+		connect.WithSchema(runnerServiceMethods.ByName("InstallBrowser")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/lazybox.bench.v1.RunnerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1522,6 +5565,10 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetRepositoryCatalogHandler.ServeHTTP(w, r)
 		case RunnerServicePrepareWorkspaceProcedure:
 			runnerServicePrepareWorkspaceHandler.ServeHTTP(w, r)
+		case RunnerServiceListRepositoryBranchesProcedure:
+			runnerServiceListRepositoryBranchesHandler.ServeHTTP(w, r)
+		case RunnerServiceRefreshRepositoryIdentityProcedure:
+			runnerServiceRefreshRepositoryIdentityHandler.ServeHTTP(w, r)
 		case RunnerServiceVersionProcedure:
 			runnerServiceVersionHandler.ServeHTTP(w, r)
 		case RunnerServiceGetRunnerSettingsProcedure:
@@ -1530,8 +5577,22 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceSaveRunnerSettingsHandler.ServeHTTP(w, r)
 		case RunnerServiceSetModelPriceProcedure:
 			runnerServiceSetModelPriceHandler.ServeHTTP(w, r)
+		case RunnerServiceGetClaudeAuthProcedure:
+			runnerServiceGetClaudeAuthHandler.ServeHTTP(w, r)
+		case RunnerServiceSetClaudeApiKeyProcedure:
+			runnerServiceSetClaudeApiKeyHandler.ServeHTTP(w, r)
+		case RunnerServiceListThemesProcedure:
+			runnerServiceListThemesHandler.ServeHTTP(w, r)
+		case RunnerServiceCreateThemeProcedure:
+			runnerServiceCreateThemeHandler.ServeHTTP(w, r)
 		case RunnerServiceInfoProcedure:
 			runnerServiceInfoHandler.ServeHTTP(w, r)
+		case RunnerServiceGetProviderAvailabilityProcedure:
+			runnerServiceGetProviderAvailabilityHandler.ServeHTTP(w, r)
+		case RunnerServiceSaveAcpAgentProcedure:
+			runnerServiceSaveAcpAgentHandler.ServeHTTP(w, r)
+		case RunnerServiceRemoveAcpAgentProcedure:
+			runnerServiceRemoveAcpAgentHandler.ServeHTTP(w, r)
 		case RunnerServiceGetTelemetryProcedure:
 			runnerServiceGetTelemetryHandler.ServeHTTP(w, r)
 		case RunnerServiceRenameCollectionProcedure:
@@ -1544,6 +5605,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceCancelSubscriptionEnrollmentHandler.ServeHTTP(w, r)
 		case RunnerServiceRefreshSubscriptionProcedure:
 			runnerServiceRefreshSubscriptionHandler.ServeHTTP(w, r)
+		case RunnerServiceRemoveSubscriptionProcedure:
+			runnerServiceRemoveSubscriptionHandler.ServeHTTP(w, r)
 		case RunnerServiceGetGitHubConnectionProcedure:
 			runnerServiceGetGitHubConnectionHandler.ServeHTTP(w, r)
 		case RunnerServiceConfigureGitHubAppProcedure:
@@ -1570,12 +5633,28 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceImportGitHubRepositoryHandler.ServeHTTP(w, r)
 		case RunnerServiceListGitHubItemsProcedure:
 			runnerServiceListGitHubItemsHandler.ServeHTTP(w, r)
+		case RunnerServiceSearchItemsProcedure:
+			runnerServiceSearchItemsHandler.ServeHTTP(w, r)
+		case RunnerServiceGetItemProcedure:
+			runnerServiceGetItemHandler.ServeHTTP(w, r)
+		case RunnerServiceResolveItemUrlProcedure:
+			runnerServiceResolveItemUrlHandler.ServeHTTP(w, r)
+		case RunnerServiceFindItemWorkspacesProcedure:
+			runnerServiceFindItemWorkspacesHandler.ServeHTTP(w, r)
 		case RunnerServiceAddLocalRepositoryProcedure:
 			runnerServiceAddLocalRepositoryHandler.ServeHTTP(w, r)
 		case RunnerServiceListRepositoriesProcedure:
 			runnerServiceListRepositoriesHandler.ServeHTTP(w, r)
 		case RunnerServiceRemoveRepositoryProcedure:
 			runnerServiceRemoveRepositoryHandler.ServeHTTP(w, r)
+		case RunnerServiceListRepositoryHomesProcedure:
+			runnerServiceListRepositoryHomesHandler.ServeHTTP(w, r)
+		case RunnerServiceSetRepositoryHomeProcedure:
+			runnerServiceSetRepositoryHomeHandler.ServeHTTP(w, r)
+		case RunnerServiceOpenRepositoryHomeProcedure:
+			runnerServiceOpenRepositoryHomeHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateRepositoryHomeProcedure:
+			runnerServiceUpdateRepositoryHomeHandler.ServeHTTP(w, r)
 		case RunnerServiceCreateCollectionProcedure:
 			runnerServiceCreateCollectionHandler.ServeHTTP(w, r)
 		case RunnerServiceAddCollectionRepositoriesProcedure:
@@ -1584,16 +5663,26 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceGetCollectionHandler.ServeHTTP(w, r)
 		case RunnerServiceListCollectionsProcedure:
 			runnerServiceListCollectionsHandler.ServeHTTP(w, r)
+		case RunnerServiceArrangeWorkspacesProcedure:
+			runnerServiceArrangeWorkspacesHandler.ServeHTTP(w, r)
 		case RunnerServiceArchiveCollectionProcedure:
 			runnerServiceArchiveCollectionHandler.ServeHTTP(w, r)
 		case RunnerServiceReconcileCollectionProcedure:
 			runnerServiceReconcileCollectionHandler.ServeHTTP(w, r)
+		case RunnerServiceGetOwnershipProcedure:
+			runnerServiceGetOwnershipHandler.ServeHTTP(w, r)
+		case RunnerServiceResolveOwnershipProcedure:
+			runnerServiceResolveOwnershipHandler.ServeHTTP(w, r)
 		case RunnerServiceOpenSessionProcedure:
 			runnerServiceOpenSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceOpenAssistantProcedure:
 			runnerServiceOpenAssistantHandler.ServeHTTP(w, r)
 		case RunnerServiceRenameConversationProcedure:
 			runnerServiceRenameConversationHandler.ServeHTTP(w, r)
+		case RunnerServicePinConversationProcedure:
+			runnerServicePinConversationHandler.ServeHTTP(w, r)
+		case RunnerServiceArchiveConversationProcedure:
+			runnerServiceArchiveConversationHandler.ServeHTTP(w, r)
 		case RunnerServiceListWorkspaceChangesProcedure:
 			runnerServiceListWorkspaceChangesHandler.ServeHTTP(w, r)
 		case RunnerServiceReadWorkspaceDiffProcedure:
@@ -1602,14 +5691,30 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceReadWorkspaceFileHandler.ServeHTTP(w, r)
 		case RunnerServiceSaveWorkspaceFileProcedure:
 			runnerServiceSaveWorkspaceFileHandler.ServeHTTP(w, r)
+		case RunnerServiceSearchWorkspaceFilesProcedure:
+			runnerServiceSearchWorkspaceFilesHandler.ServeHTTP(w, r)
+		case RunnerServiceResolveWorkspacePathProcedure:
+			runnerServiceResolveWorkspacePathHandler.ServeHTTP(w, r)
 		case RunnerServiceListHistoryProcedure:
 			runnerServiceListHistoryHandler.ServeHTTP(w, r)
 		case RunnerServiceResumeSessionProcedure:
 			runnerServiceResumeSessionHandler.ServeHTTP(w, r)
+		case RunnerServiceRestartWithPermissionProcedure:
+			runnerServiceRestartWithPermissionHandler.ServeHTTP(w, r)
+		case RunnerServiceRestartWithModelProcedure:
+			runnerServiceRestartWithModelHandler.ServeHTTP(w, r)
+		case RunnerServiceGiveBrowserProcedure:
+			runnerServiceGiveBrowserHandler.ServeHTTP(w, r)
+		case RunnerServiceSwitchSubscriptionProcedure:
+			runnerServiceSwitchSubscriptionHandler.ServeHTTP(w, r)
+		case RunnerServiceSetSessionRotationProcedure:
+			runnerServiceSetSessionRotationHandler.ServeHTTP(w, r)
 		case RunnerServiceGetSessionProcedure:
 			runnerServiceGetSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceApplyProcedure:
 			runnerServiceApplyHandler.ServeHTTP(w, r)
+		case RunnerServiceReadAttachmentProcedure:
+			runnerServiceReadAttachmentHandler.ServeHTTP(w, r)
 		case RunnerServiceCloseSessionProcedure:
 			runnerServiceCloseSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceStopSessionResourcesProcedure:
@@ -1624,6 +5729,8 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceContinueSessionHandler.ServeHTTP(w, r)
 		case RunnerServiceWatchEventsProcedure:
 			runnerServiceWatchEventsHandler.ServeHTTP(w, r)
+		case RunnerServiceReadSessionTailProcedure:
+			runnerServiceReadSessionTailHandler.ServeHTTP(w, r)
 		case RunnerServiceStartCommandProcedure:
 			runnerServiceStartCommandHandler.ServeHTTP(w, r)
 		case RunnerServiceRegisterPipeProcedure:
@@ -1634,14 +5741,250 @@ func NewRunnerServiceHandler(svc RunnerServiceHandler, opts ...connect.HandlerOp
 			runnerServiceFinishPipeHandler.ServeHTTP(w, r)
 		case RunnerServiceListCommandsProcedure:
 			runnerServiceListCommandsHandler.ServeHTTP(w, r)
+		case RunnerServiceClaimCommandShareProcedure:
+			runnerServiceClaimCommandShareHandler.ServeHTTP(w, r)
 		case RunnerServiceReadCommandProcedure:
 			runnerServiceReadCommandHandler.ServeHTTP(w, r)
 		case RunnerServiceWaitCommandProcedure:
 			runnerServiceWaitCommandHandler.ServeHTTP(w, r)
 		case RunnerServiceCancelCommandProcedure:
 			runnerServiceCancelCommandHandler.ServeHTTP(w, r)
+		case RunnerServiceBackgroundCommandProcedure:
+			runnerServiceBackgroundCommandHandler.ServeHTTP(w, r)
+		case RunnerServiceFollowPipeProcedure:
+			runnerServiceFollowPipeHandler.ServeHTTP(w, r)
 		case RunnerServiceWatchOutputProcedure:
 			runnerServiceWatchOutputHandler.ServeHTTP(w, r)
+		case RunnerServiceOpenTerminalProcedure:
+			runnerServiceOpenTerminalHandler.ServeHTTP(w, r)
+		case RunnerServiceListTerminalsProcedure:
+			runnerServiceListTerminalsHandler.ServeHTTP(w, r)
+		case RunnerServiceWatchTerminalProcedure:
+			runnerServiceWatchTerminalHandler.ServeHTTP(w, r)
+		case RunnerServiceWriteTerminalProcedure:
+			runnerServiceWriteTerminalHandler.ServeHTTP(w, r)
+		case RunnerServiceResizeTerminalProcedure:
+			runnerServiceResizeTerminalHandler.ServeHTTP(w, r)
+		case RunnerServiceCloseTerminalProcedure:
+			runnerServiceCloseTerminalHandler.ServeHTTP(w, r)
+		case RunnerServiceRestartRunnerProcedure:
+			runnerServiceRestartRunnerHandler.ServeHTTP(w, r)
+		case RunnerServiceCommitWorkspaceChangesProcedure:
+			runnerServiceCommitWorkspaceChangesHandler.ServeHTTP(w, r)
+		case RunnerServicePushWorkspaceBranchProcedure:
+			runnerServicePushWorkspaceBranchHandler.ServeHTTP(w, r)
+		case RunnerServiceCreatePullRequestProcedure:
+			runnerServiceCreatePullRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceGetPullRequestProcedure:
+			runnerServiceGetPullRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceMergePullRequestProcedure:
+			runnerServiceMergePullRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceListWorkspaceGitSummariesProcedure:
+			runnerServiceListWorkspaceGitSummariesHandler.ServeHTTP(w, r)
+		case RunnerServiceListLinksProcedure:
+			runnerServiceListLinksHandler.ServeHTTP(w, r)
+		case RunnerServiceLinkItemProcedure:
+			runnerServiceLinkItemHandler.ServeHTTP(w, r)
+		case RunnerServiceUnlinkItemProcedure:
+			runnerServiceUnlinkItemHandler.ServeHTTP(w, r)
+		case RunnerServiceSendPullRequestFailuresProcedure:
+			runnerServiceSendPullRequestFailuresHandler.ServeHTTP(w, r)
+		case RunnerServiceImportPullRequestReviewProcedure:
+			runnerServiceImportPullRequestReviewHandler.ServeHTTP(w, r)
+		case RunnerServiceListReviewCommentsProcedure:
+			runnerServiceListReviewCommentsHandler.ServeHTTP(w, r)
+		case RunnerServiceAddReviewCommentProcedure:
+			runnerServiceAddReviewCommentHandler.ServeHTTP(w, r)
+		case RunnerServiceEditReviewCommentProcedure:
+			runnerServiceEditReviewCommentHandler.ServeHTTP(w, r)
+		case RunnerServiceDeleteReviewCommentProcedure:
+			runnerServiceDeleteReviewCommentHandler.ServeHTTP(w, r)
+		case RunnerServiceSetReviewDispositionProcedure:
+			runnerServiceSetReviewDispositionHandler.ServeHTTP(w, r)
+		case RunnerServiceSetReviewAutoResolveProcedure:
+			runnerServiceSetReviewAutoResolveHandler.ServeHTTP(w, r)
+		case RunnerServiceStartReviewProcedure:
+			runnerServiceStartReviewHandler.ServeHTTP(w, r)
+		case RunnerServiceAddReviewFindingProcedure:
+			runnerServiceAddReviewFindingHandler.ServeHTTP(w, r)
+		case RunnerServiceListReviewFindingsProcedure:
+			runnerServiceListReviewFindingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSetReviewFindingStateProcedure:
+			runnerServiceSetReviewFindingStateHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateReviewRunProcedure:
+			runnerServiceUpdateReviewRunHandler.ServeHTTP(w, r)
+		case RunnerServiceCancelReviewProcedure:
+			runnerServiceCancelReviewHandler.ServeHTTP(w, r)
+		case RunnerServiceAskAgentProcedure:
+			runnerServiceAskAgentHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitAgentAskProcedure:
+			runnerServiceWaitAgentAskHandler.ServeHTTP(w, r)
+		case RunnerServiceListProcessesProcedure:
+			runnerServiceListProcessesHandler.ServeHTTP(w, r)
+		case RunnerServiceStopProcessProcedure:
+			runnerServiceStopProcessHandler.ServeHTTP(w, r)
+		case RunnerServiceCleanUpOrphanProcessesProcedure:
+			runnerServiceCleanUpOrphanProcessesHandler.ServeHTTP(w, r)
+		case RunnerServiceGetOrchestrationProcessProcedure:
+			runnerServiceGetOrchestrationProcessHandler.ServeHTTP(w, r)
+		case RunnerServiceExplainOrchestrationProcessProcedure:
+			runnerServiceExplainOrchestrationProcessHandler.ServeHTTP(w, r)
+		case RunnerServiceListTurnCheckpointsProcedure:
+			runnerServiceListTurnCheckpointsHandler.ServeHTTP(w, r)
+		case RunnerServiceListTurnChangesProcedure:
+			runnerServiceListTurnChangesHandler.ServeHTTP(w, r)
+		case RunnerServiceReadTurnDiffProcedure:
+			runnerServiceReadTurnDiffHandler.ServeHTTP(w, r)
+		case RunnerServicePreviewRevertCodeProcedure:
+			runnerServicePreviewRevertCodeHandler.ServeHTTP(w, r)
+		case RunnerServiceRevertCodeProcedure:
+			runnerServiceRevertCodeHandler.ServeHTTP(w, r)
+		case RunnerServiceUndoRevertCodeProcedure:
+			runnerServiceUndoRevertCodeHandler.ServeHTTP(w, r)
+		case RunnerServiceGetWorkspaceRuntimeProcedure:
+			runnerServiceGetWorkspaceRuntimeHandler.ServeHTTP(w, r)
+		case RunnerServiceApproveWorkspaceScriptsProcedure:
+			runnerServiceApproveWorkspaceScriptsHandler.ServeHTTP(w, r)
+		case RunnerServiceStartWorkspaceActionProcedure:
+			runnerServiceStartWorkspaceActionHandler.ServeHTTP(w, r)
+		case RunnerServiceStopWorkspaceActionProcedure:
+			runnerServiceStopWorkspaceActionHandler.ServeHTTP(w, r)
+		case RunnerServiceRunWorkspaceSetupProcedure:
+			runnerServiceRunWorkspaceSetupHandler.ServeHTTP(w, r)
+		case RunnerServiceGetWorkspaceRuntimeSettingsProcedure:
+			runnerServiceGetWorkspaceRuntimeSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSaveWorkspaceRuntimeSettingsProcedure:
+			runnerServiceSaveWorkspaceRuntimeSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceGetRemoteAccessProcedure:
+			runnerServiceGetRemoteAccessHandler.ServeHTTP(w, r)
+		case RunnerServiceSetRemoteAccessProcedure:
+			runnerServiceSetRemoteAccessHandler.ServeHTTP(w, r)
+		case RunnerServiceBeginDevicePairingProcedure:
+			runnerServiceBeginDevicePairingHandler.ServeHTTP(w, r)
+		case RunnerServiceGetDevicePairingProcedure:
+			runnerServiceGetDevicePairingHandler.ServeHTTP(w, r)
+		case RunnerServiceCancelDevicePairingProcedure:
+			runnerServiceCancelDevicePairingHandler.ServeHTTP(w, r)
+		case RunnerServiceListDevicesProcedure:
+			runnerServiceListDevicesHandler.ServeHTTP(w, r)
+		case RunnerServiceRevokeDeviceProcedure:
+			runnerServiceRevokeDeviceHandler.ServeHTTP(w, r)
+		case RunnerServiceGetPushSettingsProcedure:
+			runnerServiceGetPushSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSetPushSettingsProcedure:
+			runnerServiceSetPushSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSendTestPushProcedure:
+			runnerServiceSendTestPushHandler.ServeHTTP(w, r)
+		case RunnerServiceListMissionsProcedure:
+			runnerServiceListMissionsHandler.ServeHTTP(w, r)
+		case RunnerServiceGetMissionProcedure:
+			runnerServiceGetMissionHandler.ServeHTTP(w, r)
+		case RunnerServiceCreateMissionProcedure:
+			runnerServiceCreateMissionHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateMissionProcedure:
+			runnerServiceUpdateMissionHandler.ServeHTTP(w, r)
+		case RunnerServiceListPromptHistoryProcedure:
+			runnerServiceListPromptHistoryHandler.ServeHTTP(w, r)
+		case RunnerServiceSpawnAgentProcedure:
+			runnerServiceSpawnAgentHandler.ServeHTTP(w, r)
+		case RunnerServiceListAgentLineageProcedure:
+			runnerServiceListAgentLineageHandler.ServeHTTP(w, r)
+		case RunnerServiceSendAgentMessageProcedure:
+			runnerServiceSendAgentMessageHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitAgentsProcedure:
+			runnerServiceWaitAgentsHandler.ServeHTTP(w, r)
+		case RunnerServiceStopChildAgentProcedure:
+			runnerServiceStopChildAgentHandler.ServeHTTP(w, r)
+		case RunnerServiceReportAgentTaskProcedure:
+			runnerServiceReportAgentTaskHandler.ServeHTTP(w, r)
+		case RunnerServiceProposePlanProcedure:
+			runnerServiceProposePlanHandler.ServeHTTP(w, r)
+		case RunnerServiceClaimLeaseProcedure:
+			runnerServiceClaimLeaseHandler.ServeHTTP(w, r)
+		case RunnerServiceReleaseLeaseProcedure:
+			runnerServiceReleaseLeaseHandler.ServeHTTP(w, r)
+		case RunnerServiceListLeasesProcedure:
+			runnerServiceListLeasesHandler.ServeHTTP(w, r)
+		case RunnerServiceListArtifactsProcedure:
+			runnerServiceListArtifactsHandler.ServeHTTP(w, r)
+		case RunnerServiceGetArtifactProcedure:
+			runnerServiceGetArtifactHandler.ServeHTTP(w, r)
+		case RunnerServicePutArtifactProcedure:
+			runnerServicePutArtifactHandler.ServeHTTP(w, r)
+		case RunnerServiceTrackArtifactFileProcedure:
+			runnerServiceTrackArtifactFileHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateArtifactProcedure:
+			runnerServiceUpdateArtifactHandler.ServeHTTP(w, r)
+		case RunnerServiceDeleteArtifactProcedure:
+			runnerServiceDeleteArtifactHandler.ServeHTTP(w, r)
+		case RunnerServiceRetireArtifactProcedure:
+			runnerServiceRetireArtifactHandler.ServeHTTP(w, r)
+		case RunnerServiceSaveArtifactToRepositoryProcedure:
+			runnerServiceSaveArtifactToRepositoryHandler.ServeHTTP(w, r)
+		case RunnerServiceCreateArtifactIssueProcedure:
+			runnerServiceCreateArtifactIssueHandler.ServeHTTP(w, r)
+		case RunnerServiceGetUserActionsProcedure:
+			runnerServiceGetUserActionsHandler.ServeHTTP(w, r)
+		case RunnerServiceInitUserActionsProcedure:
+			runnerServiceInitUserActionsHandler.ServeHTTP(w, r)
+		case RunnerServiceListHookRunsProcedure:
+			runnerServiceListHookRunsHandler.ServeHTTP(w, r)
+		case RunnerServiceTestHookProcedure:
+			runnerServiceTestHookHandler.ServeHTTP(w, r)
+		case RunnerServicePostUiRequestProcedure:
+			runnerServicePostUiRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitUiRequestProcedure:
+			runnerServiceWaitUiRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceWatchUiRequestsProcedure:
+			runnerServiceWatchUiRequestsHandler.ServeHTTP(w, r)
+		case RunnerServiceCompleteUiRequestProcedure:
+			runnerServiceCompleteUiRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceGetConfigFilesProcedure:
+			runnerServiceGetConfigFilesHandler.ServeHTTP(w, r)
+		case RunnerServiceUpdateConfigFileProcedure:
+			runnerServiceUpdateConfigFileHandler.ServeHTTP(w, r)
+		case RunnerServiceListExtensionsProcedure:
+			runnerServiceListExtensionsHandler.ServeHTTP(w, r)
+		case RunnerServiceApproveExtensionProcedure:
+			runnerServiceApproveExtensionHandler.ServeHTTP(w, r)
+		case RunnerServiceSetExtensionEnabledProcedure:
+			runnerServiceSetExtensionEnabledHandler.ServeHTTP(w, r)
+		case RunnerServiceRemoveExtensionProcedure:
+			runnerServiceRemoveExtensionHandler.ServeHTTP(w, r)
+		case RunnerServiceInstallExampleExtensionProcedure:
+			runnerServiceInstallExampleExtensionHandler.ServeHTTP(w, r)
+		case RunnerServiceOpenExtensionPanelProcedure:
+			runnerServiceOpenExtensionPanelHandler.ServeHTTP(w, r)
+		case RunnerServiceListWorkspaceRepositoriesProcedure:
+			runnerServiceListWorkspaceRepositoriesHandler.ServeHTTP(w, r)
+		case RunnerServiceRequestRepositoryProcedure:
+			runnerServiceRequestRepositoryHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitRepositoryRequestProcedure:
+			runnerServiceWaitRepositoryRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceDeclineRepositoryRequestProcedure:
+			runnerServiceDeclineRepositoryRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceRequestConversationStartProcedure:
+			runnerServiceRequestConversationStartHandler.ServeHTTP(w, r)
+		case RunnerServiceWaitConversationStartProcedure:
+			runnerServiceWaitConversationStartHandler.ServeHTTP(w, r)
+		case RunnerServiceAnswerConversationStartProcedure:
+			runnerServiceAnswerConversationStartHandler.ServeHTTP(w, r)
+		case RunnerServiceWatchBrowserProcedure:
+			runnerServiceWatchBrowserHandler.ServeHTTP(w, r)
+		case RunnerServiceControlBrowserProcedure:
+			runnerServiceControlBrowserHandler.ServeHTTP(w, r)
+		case RunnerServiceSendBrowserInputProcedure:
+			runnerServiceSendBrowserInputHandler.ServeHTTP(w, r)
+		case RunnerServiceDecideBrowserRequestProcedure:
+			runnerServiceDecideBrowserRequestHandler.ServeHTTP(w, r)
+		case RunnerServiceGetBrowserSettingsProcedure:
+			runnerServiceGetBrowserSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceSaveBrowserSettingsProcedure:
+			runnerServiceSaveBrowserSettingsHandler.ServeHTTP(w, r)
+		case RunnerServiceClearBrowserDataProcedure:
+			runnerServiceClearBrowserDataHandler.ServeHTTP(w, r)
+		case RunnerServiceInstallBrowserProcedure:
+			runnerServiceInstallBrowserHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -1663,6 +6006,14 @@ func (UnimplementedRunnerServiceHandler) PrepareWorkspace(context.Context, *conn
 	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PrepareWorkspace is not implemented"))
 }
 
+func (UnimplementedRunnerServiceHandler) ListRepositoryBranches(context.Context, *connect.Request[gen.ListRepositoryBranchesRequest]) (*connect.Response[gen.RepositoryBranches], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListRepositoryBranches is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RefreshRepositoryIdentity(context.Context, *connect.Request[gen.RefreshRepositoryIdentityRequest]) (*connect.Response[gen.RepositoryIdentityRefresh], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RefreshRepositoryIdentity is not implemented"))
+}
+
 func (UnimplementedRunnerServiceHandler) Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.Version is not implemented"))
 }
@@ -1679,8 +6030,36 @@ func (UnimplementedRunnerServiceHandler) SetModelPrice(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetModelPrice is not implemented"))
 }
 
+func (UnimplementedRunnerServiceHandler) GetClaudeAuth(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.ClaudeAuth], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetClaudeAuth is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetClaudeApiKey(context.Context, *connect.Request[gen.SetClaudeApiKeyRequest]) (*connect.Response[gen.ClaudeAuth], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetClaudeApiKey is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListThemes(context.Context, *connect.Request[gen.ListThemesRequest]) (*connect.Response[gen.ThemeFolder], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListThemes is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CreateTheme(context.Context, *connect.Request[gen.CreateThemeRequest]) (*connect.Response[gen.CreateThemeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CreateTheme is not implemented"))
+}
+
 func (UnimplementedRunnerServiceHandler) Info(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.InfoResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.Info is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetProviderAvailability(context.Context, *connect.Request[gen.ProviderAvailabilityRequest]) (*connect.Response[gen.ProviderAvailability], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetProviderAvailability is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SaveAcpAgent(context.Context, *connect.Request[gen.SaveAcpAgentRequest]) (*connect.Response[gen.ProviderAvailability], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveAcpAgent is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RemoveAcpAgent(context.Context, *connect.Request[gen.RemoveAcpAgentRequest]) (*connect.Response[gen.ProviderAvailability], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RemoveAcpAgent is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) GetTelemetry(context.Context, *connect.Request[gen.TelemetryRequest]) (*connect.Response[gen.TelemetryReport], error) {
@@ -1705,6 +6084,10 @@ func (UnimplementedRunnerServiceHandler) CancelSubscriptionEnrollment(context.Co
 
 func (UnimplementedRunnerServiceHandler) RefreshSubscription(context.Context, *connect.Request[gen.RefreshSubscriptionRequest]) (*connect.Response[gen.Profile], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RefreshSubscription is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RemoveSubscription(context.Context, *connect.Request[gen.RemoveSubscriptionRequest]) (*connect.Response[gen.InfoResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RemoveSubscription is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) GetGitHubConnection(context.Context, *connect.Request[gen.GetGitHubConnectionRequest]) (*connect.Response[gen.GitHubConnection], error) {
@@ -1759,6 +6142,22 @@ func (UnimplementedRunnerServiceHandler) ListGitHubItems(context.Context, *conne
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListGitHubItems is not implemented"))
 }
 
+func (UnimplementedRunnerServiceHandler) SearchItems(context.Context, *connect.Request[gen.SearchItemsRequest]) (*connect.Response[gen.ItemPage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SearchItems is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetItem(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemDetail], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetItem is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ResolveItemUrl(context.Context, *connect.Request[gen.ResolveItemUrlRequest]) (*connect.Response[gen.ItemRef], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ResolveItemUrl is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) FindItemWorkspaces(context.Context, *connect.Request[gen.ItemRequest]) (*connect.Response[gen.ItemWorkspaces], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.FindItemWorkspaces is not implemented"))
+}
+
 func (UnimplementedRunnerServiceHandler) AddLocalRepository(context.Context, *connect.Request[gen.AddLocalRepositoryRequest]) (*connect.Response[gen.AddLocalRepositoryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.AddLocalRepository is not implemented"))
 }
@@ -1769,6 +6168,22 @@ func (UnimplementedRunnerServiceHandler) ListRepositories(context.Context, *conn
 
 func (UnimplementedRunnerServiceHandler) RemoveRepository(context.Context, *connect.Request[gen.RemoveRepositoryRequest]) (*connect.Response[gen.RepositoryDiscovery], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RemoveRepository is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListRepositoryHomes(context.Context, *connect.Request[gen.ListRepositoryHomesRequest]) (*connect.Response[gen.RepositoryHomes], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListRepositoryHomes is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetRepositoryHome(context.Context, *connect.Request[gen.SetRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHome], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetRepositoryHome is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) OpenRepositoryHome(context.Context, *connect.Request[gen.OpenRepositoryHomeRequest]) (*connect.Response[gen.OpenRepositoryHomeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.OpenRepositoryHome is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateRepositoryHome(context.Context, *connect.Request[gen.UpdateRepositoryHomeRequest]) (*connect.Response[gen.RepositoryHomeUpdate], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateRepositoryHome is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) CreateCollection(context.Context, *connect.Request[gen.CreateCollectionRequest]) (*connect.Response[gen.CollectionResponse], error) {
@@ -1787,12 +6202,24 @@ func (UnimplementedRunnerServiceHandler) ListCollections(context.Context, *conne
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListCollections is not implemented"))
 }
 
+func (UnimplementedRunnerServiceHandler) ArrangeWorkspaces(context.Context, *connect.Request[gen.ArrangeWorkspacesRequest]) (*connect.Response[gen.ListCollectionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ArrangeWorkspaces is not implemented"))
+}
+
 func (UnimplementedRunnerServiceHandler) ArchiveCollection(context.Context, *connect.Request[gen.CollectionRequest]) (*connect.Response[gen.CollectionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ArchiveCollection is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ReconcileCollection(context.Context, *connect.Request[gen.ReconcileCollectionRequest]) (*connect.Response[gen.CollectionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReconcileCollection is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetOwnership(context.Context, *connect.Request[gen.OwnershipRequest]) (*connect.Response[gen.Ownership], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetOwnership is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ResolveOwnership(context.Context, *connect.Request[gen.ResolveOwnershipRequest]) (*connect.Response[gen.Ownership], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ResolveOwnership is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) OpenSession(context.Context, *connect.Request[gen.OpenSessionRequest]) (*connect.Response[gen.SessionResponse], error) {
@@ -1805,6 +6232,14 @@ func (UnimplementedRunnerServiceHandler) OpenAssistant(context.Context, *connect
 
 func (UnimplementedRunnerServiceHandler) RenameConversation(context.Context, *connect.Request[gen.RenameConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RenameConversation is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PinConversation(context.Context, *connect.Request[gen.PinConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PinConversation is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ArchiveConversation(context.Context, *connect.Request[gen.ArchiveConversationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ArchiveConversation is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) ListWorkspaceChanges(context.Context, *connect.Request[gen.WorkspaceChangesRequest]) (*connect.Response[gen.WorkspaceChanges], error) {
@@ -1823,6 +6258,14 @@ func (UnimplementedRunnerServiceHandler) SaveWorkspaceFile(context.Context, *con
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveWorkspaceFile is not implemented"))
 }
 
+func (UnimplementedRunnerServiceHandler) SearchWorkspaceFiles(context.Context, *connect.Request[gen.SearchWorkspaceFilesRequest]) (*connect.Response[gen.WorkspaceFileSearch], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SearchWorkspaceFiles is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ResolveWorkspacePath(context.Context, *connect.Request[gen.ResolveWorkspacePathRequest]) (*connect.Response[gen.WorkspacePathResolution], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ResolveWorkspacePath is not implemented"))
+}
+
 func (UnimplementedRunnerServiceHandler) ListHistory(context.Context, *connect.Request[gen.ListHistoryRequest]) (*connect.Response[gen.ListHistoryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListHistory is not implemented"))
 }
@@ -1831,12 +6274,36 @@ func (UnimplementedRunnerServiceHandler) ResumeSession(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ResumeSession is not implemented"))
 }
 
+func (UnimplementedRunnerServiceHandler) RestartWithPermission(context.Context, *connect.Request[gen.RestartWithPermissionRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartWithPermission is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RestartWithModel(context.Context, *connect.Request[gen.RestartWithModelRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartWithModel is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GiveBrowser(context.Context, *connect.Request[gen.GiveBrowserRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GiveBrowser is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SwitchSubscription(context.Context, *connect.Request[gen.SwitchSubscriptionRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SwitchSubscription is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetSessionRotation(context.Context, *connect.Request[gen.SetSessionRotationRequest]) (*connect.Response[gen.SessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetSessionRotation is not implemented"))
+}
+
 func (UnimplementedRunnerServiceHandler) GetSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetSession is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) Apply(context.Context, *connect.Request[gen.ApplyRequest]) (*connect.Response[gen.Receipt], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.Apply is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ReadAttachment(context.Context, *connect.Request[gen.ReadAttachmentRequest]) (*connect.Response[gen.AttachmentContent], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReadAttachment is not implemented"))
 }
 
 func (UnimplementedRunnerServiceHandler) CloseSession(context.Context, *connect.Request[gen.SessionRequest]) (*connect.Response[gen.SessionResponse], error) {
@@ -1867,6 +6334,10 @@ func (UnimplementedRunnerServiceHandler) WatchEvents(context.Context, *connect.R
 	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WatchEvents is not implemented"))
 }
 
+func (UnimplementedRunnerServiceHandler) ReadSessionTail(context.Context, *connect.Request[gen.ReadSessionTailRequest]) (*connect.Response[gen.ReadSessionTailResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReadSessionTail is not implemented"))
+}
+
 func (UnimplementedRunnerServiceHandler) StartCommand(context.Context, *connect.Request[gen.StartCommandRequest]) (*connect.Response[gen.CommandStatus], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StartCommand is not implemented"))
 }
@@ -1887,6 +6358,10 @@ func (UnimplementedRunnerServiceHandler) ListCommands(context.Context, *connect.
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListCommands is not implemented"))
 }
 
+func (UnimplementedRunnerServiceHandler) ClaimCommandShare(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.ClaimCommandShareResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ClaimCommandShare is not implemented"))
+}
+
 func (UnimplementedRunnerServiceHandler) ReadCommand(context.Context, *connect.Request[gen.ReadCommandRequest]) (*connect.Response[gen.ReadCommandResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReadCommand is not implemented"))
 }
@@ -1899,6 +6374,474 @@ func (UnimplementedRunnerServiceHandler) CancelCommand(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CancelCommand is not implemented"))
 }
 
+func (UnimplementedRunnerServiceHandler) BackgroundCommand(context.Context, *connect.Request[gen.CommandRequest]) (*connect.Response[gen.CommandStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.BackgroundCommand is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) FollowPipe(context.Context, *connect.Request[gen.FollowPipeRequest]) (*connect.Response[gen.FollowPipeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.FollowPipe is not implemented"))
+}
+
 func (UnimplementedRunnerServiceHandler) WatchOutput(context.Context, *connect.Request[gen.WatchOutputRequest], *connect.ServerStream[gen.OutputEvent]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WatchOutput is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) OpenTerminal(context.Context, *connect.Request[gen.OpenTerminalRequest]) (*connect.Response[gen.TerminalStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.OpenTerminal is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListTerminals(context.Context, *connect.Request[gen.ListTerminalsRequest]) (*connect.Response[gen.ListTerminalsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListTerminals is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WatchTerminal(context.Context, *connect.Request[gen.WatchTerminalRequest], *connect.ServerStream[gen.TerminalEvent]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WatchTerminal is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WriteTerminal(context.Context, *connect.Request[gen.WriteTerminalRequest]) (*connect.Response[gen.TerminalStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WriteTerminal is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ResizeTerminal(context.Context, *connect.Request[gen.ResizeTerminalRequest]) (*connect.Response[gen.TerminalStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ResizeTerminal is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CloseTerminal(context.Context, *connect.Request[gen.TerminalRequest]) (*connect.Response[gen.TerminalStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CloseTerminal is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RestartRunner(context.Context, *connect.Request[gen.RestartRunnerRequest]) (*connect.Response[gen.RestartRunnerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RestartRunner is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CommitWorkspaceChanges(context.Context, *connect.Request[gen.CommitWorkspaceChangesRequest]) (*connect.Response[gen.CommitWorkspaceChangesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CommitWorkspaceChanges is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PushWorkspaceBranch(context.Context, *connect.Request[gen.PushWorkspaceBranchRequest]) (*connect.Response[gen.PushWorkspaceBranchResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PushWorkspaceBranch is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CreatePullRequest(context.Context, *connect.Request[gen.CreatePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CreatePullRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetPullRequest(context.Context, *connect.Request[gen.GetPullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetPullRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) MergePullRequest(context.Context, *connect.Request[gen.MergePullRequestRequest]) (*connect.Response[gen.PullRequestStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.MergePullRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListWorkspaceGitSummaries(context.Context, *connect.Request[gen.WorkspaceGitSummariesRequest]) (*connect.Response[gen.WorkspaceGitSummaries], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListWorkspaceGitSummaries is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListLinks(context.Context, *connect.Request[gen.ListLinksRequest]) (*connect.Response[gen.Links], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListLinks is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) LinkItem(context.Context, *connect.Request[gen.LinkItemRequest]) (*connect.Response[gen.Links], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.LinkItem is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UnlinkItem(context.Context, *connect.Request[gen.UnlinkItemRequest]) (*connect.Response[gen.Links], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UnlinkItem is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SendPullRequestFailures(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SendPullRequestFailures is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ImportPullRequestReview(context.Context, *connect.Request[gen.PullRequestReactionRequest]) (*connect.Response[gen.PullRequestReaction], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ImportPullRequestReview is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListReviewComments(context.Context, *connect.Request[gen.ListReviewCommentsRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListReviewComments is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) AddReviewComment(context.Context, *connect.Request[gen.AddReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.AddReviewComment is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) EditReviewComment(context.Context, *connect.Request[gen.EditReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.EditReviewComment is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) DeleteReviewComment(context.Context, *connect.Request[gen.DeleteReviewCommentRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DeleteReviewComment is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetReviewDisposition(context.Context, *connect.Request[gen.SetReviewDispositionRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetReviewDisposition is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetReviewAutoResolve(context.Context, *connect.Request[gen.SetReviewAutoResolveRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetReviewAutoResolve is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StartReview(context.Context, *connect.Request[gen.StartReviewRequest]) (*connect.Response[gen.StartReviewResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StartReview is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) AddReviewFinding(context.Context, *connect.Request[gen.AddReviewFindingRequest]) (*connect.Response[gen.ReviewFinding], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.AddReviewFinding is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListReviewFindings(context.Context, *connect.Request[gen.ListReviewFindingsRequest]) (*connect.Response[gen.ReviewFindings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListReviewFindings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetReviewFindingState(context.Context, *connect.Request[gen.SetReviewFindingStateRequest]) (*connect.Response[gen.ReviewFinding], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetReviewFindingState is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateReviewRun(context.Context, *connect.Request[gen.UpdateReviewRunRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateReviewRun is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CancelReview(context.Context, *connect.Request[gen.CancelReviewRequest]) (*connect.Response[gen.WorkspaceReview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CancelReview is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) AskAgent(context.Context, *connect.Request[gen.AskAgentRequest]) (*connect.Response[gen.AgentAsk], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.AskAgent is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitAgentAsk(context.Context, *connect.Request[gen.WaitAgentAskRequest]) (*connect.Response[gen.AgentAsk], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitAgentAsk is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListProcesses(context.Context, *connect.Request[gen.ListProcessesRequest]) (*connect.Response[gen.ProcessInventory], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListProcesses is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StopProcess(context.Context, *connect.Request[gen.StopProcessRequest]) (*connect.Response[gen.ProcessInventory], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StopProcess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CleanUpOrphanProcesses(context.Context, *connect.Request[gen.CleanUpOrphanProcessesRequest]) (*connect.Response[gen.CleanUpOrphanProcessesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CleanUpOrphanProcesses is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetOrchestrationProcess(context.Context, *connect.Request[gen.OrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcess], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetOrchestrationProcess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ExplainOrchestrationProcess(context.Context, *connect.Request[gen.ExplainOrchestrationProcessRequest]) (*connect.Response[gen.OrchestrationProcessExplanation], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ExplainOrchestrationProcess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListTurnCheckpoints(context.Context, *connect.Request[gen.TurnCheckpointsRequest]) (*connect.Response[gen.TurnCheckpoints], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListTurnCheckpoints is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListTurnChanges(context.Context, *connect.Request[gen.TurnChangesRequest]) (*connect.Response[gen.TurnChanges], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListTurnChanges is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ReadTurnDiff(context.Context, *connect.Request[gen.TurnDiffRequest]) (*connect.Response[gen.WorkspaceDiff], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReadTurnDiff is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PreviewRevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.RevertCodePreview], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PreviewRevertCode is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RevertCode(context.Context, *connect.Request[gen.RevertCodeRequest]) (*connect.Response[gen.CodeRevert], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RevertCode is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UndoRevertCode(context.Context, *connect.Request[gen.UndoRevertCodeRequest]) (*connect.Response[gen.CodeRevert], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UndoRevertCode is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetWorkspaceRuntime(context.Context, *connect.Request[gen.WorkspaceRuntimeRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetWorkspaceRuntime is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ApproveWorkspaceScripts(context.Context, *connect.Request[gen.ApproveWorkspaceScriptsRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ApproveWorkspaceScripts is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StartWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StartWorkspaceAction is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StopWorkspaceAction(context.Context, *connect.Request[gen.WorkspaceActionRequest]) (*connect.Response[gen.WorkspaceActionResult], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StopWorkspaceAction is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RunWorkspaceSetup(context.Context, *connect.Request[gen.RunWorkspaceSetupRequest]) (*connect.Response[gen.WorkspaceRuntime], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RunWorkspaceSetup is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.WorkspaceRuntimeSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetWorkspaceRuntimeSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SaveWorkspaceRuntimeSettings(context.Context, *connect.Request[gen.WorkspaceRuntimeSettings]) (*connect.Response[gen.WorkspaceRuntimeSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveWorkspaceRuntimeSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetRemoteAccess(context.Context, *connect.Request[gen.GetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetRemoteAccess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetRemoteAccess(context.Context, *connect.Request[gen.SetRemoteAccessRequest]) (*connect.Response[gen.RemoteAccess], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetRemoteAccess is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) BeginDevicePairing(context.Context, *connect.Request[gen.BeginDevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.BeginDevicePairing is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetDevicePairing is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CancelDevicePairing(context.Context, *connect.Request[gen.DevicePairingRequest]) (*connect.Response[gen.DevicePairing], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CancelDevicePairing is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListDevices(context.Context, *connect.Request[gen.ListDevicesRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListDevices is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RevokeDevice(context.Context, *connect.Request[gen.RevokeDeviceRequest]) (*connect.Response[gen.ListDevicesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RevokeDevice is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetPushSettings(context.Context, *connect.Request[gen.GetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetPushSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetPushSettings(context.Context, *connect.Request[gen.SetPushSettingsRequest]) (*connect.Response[gen.PushSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetPushSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SendTestPush(context.Context, *connect.Request[gen.SendTestPushRequest]) (*connect.Response[gen.SendTestPushResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SendTestPush is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListMissions(context.Context, *connect.Request[gen.ListMissionsRequest]) (*connect.Response[gen.ListMissionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListMissions is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetMission(context.Context, *connect.Request[gen.GetMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetMission is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CreateMission(context.Context, *connect.Request[gen.CreateMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CreateMission is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateMission(context.Context, *connect.Request[gen.UpdateMissionRequest]) (*connect.Response[gen.Mission], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateMission is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListPromptHistory(context.Context, *connect.Request[gen.ListPromptHistoryRequest]) (*connect.Response[gen.PromptHistory], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListPromptHistory is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SpawnAgent(context.Context, *connect.Request[gen.SpawnAgentRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SpawnAgent is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListAgentLineage(context.Context, *connect.Request[gen.AgentLineageRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListAgentLineage is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SendAgentMessage(context.Context, *connect.Request[gen.SendAgentMessageRequest]) (*connect.Response[gen.AgentMessageReceipt], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SendAgentMessage is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitAgents(context.Context, *connect.Request[gen.WaitAgentsRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitAgents is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) StopChildAgent(context.Context, *connect.Request[gen.StopChildAgentRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.StopChildAgent is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ReportAgentTask(context.Context, *connect.Request[gen.ReportAgentTaskRequest]) (*connect.Response[gen.AgentLineage], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReportAgentTask is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ProposePlan(context.Context, *connect.Request[gen.ProposePlanRequest]) (*connect.Response[gen.MissionPlan], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ProposePlan is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ClaimLease(context.Context, *connect.Request[gen.ClaimLeaseRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ClaimLease is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ReleaseLease(context.Context, *connect.Request[gen.ReleaseLeaseRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ReleaseLease is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListLeases(context.Context, *connect.Request[gen.LeasesRequest]) (*connect.Response[gen.MissionLeases], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListLeases is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListArtifacts(context.Context, *connect.Request[gen.ListArtifactsRequest]) (*connect.Response[gen.ListArtifactsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListArtifacts is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetArtifact(context.Context, *connect.Request[gen.GetArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PutArtifact(context.Context, *connect.Request[gen.PutArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PutArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) TrackArtifactFile(context.Context, *connect.Request[gen.TrackArtifactFileRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.TrackArtifactFile is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateArtifact(context.Context, *connect.Request[gen.UpdateArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) DeleteArtifact(context.Context, *connect.Request[gen.DeleteArtifactRequest]) (*connect.Response[gen.DeleteArtifactResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DeleteArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RetireArtifact(context.Context, *connect.Request[gen.RetireArtifactRequest]) (*connect.Response[gen.Artifact], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RetireArtifact is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SaveArtifactToRepository(context.Context, *connect.Request[gen.SaveArtifactToRepositoryRequest]) (*connect.Response[gen.SaveArtifactToRepositoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveArtifactToRepository is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CreateArtifactIssue(context.Context, *connect.Request[gen.CreateArtifactIssueRequest]) (*connect.Response[gen.CreateArtifactIssueResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CreateArtifactIssue is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetUserActions is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) InitUserActions(context.Context, *connect.Request[gen.GetUserActionsRequest]) (*connect.Response[gen.UserActions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.InitUserActions is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListHookRuns(context.Context, *connect.Request[gen.ListHookRunsRequest]) (*connect.Response[gen.HookRuns], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListHookRuns is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) TestHook(context.Context, *connect.Request[gen.TestHookRequest]) (*connect.Response[gen.HookRun], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.TestHook is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) PostUiRequest(context.Context, *connect.Request[gen.UiRequest]) (*connect.Response[gen.UiRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.PostUiRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitUiRequest(context.Context, *connect.Request[gen.WaitUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitUiRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WatchUiRequests(context.Context, *connect.Request[gen.WatchUiRequestsRequest], *connect.ServerStream[gen.UiRequest]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WatchUiRequests is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) CompleteUiRequest(context.Context, *connect.Request[gen.CompleteUiRequestRequest]) (*connect.Response[gen.UiRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.CompleteUiRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetConfigFiles(context.Context, *connect.Request[gen.GetConfigFilesRequest]) (*connect.Response[gen.ConfigFiles], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetConfigFiles is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) UpdateConfigFile(context.Context, *connect.Request[gen.UpdateConfigFileRequest]) (*connect.Response[gen.ConfigFiles], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.UpdateConfigFile is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListExtensions(context.Context, *connect.Request[gen.ListExtensionsRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListExtensions is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ApproveExtension(context.Context, *connect.Request[gen.ApproveExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ApproveExtension is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SetExtensionEnabled(context.Context, *connect.Request[gen.SetExtensionEnabledRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SetExtensionEnabled is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RemoveExtension(context.Context, *connect.Request[gen.RemoveExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RemoveExtension is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) InstallExampleExtension(context.Context, *connect.Request[gen.InstallExampleExtensionRequest]) (*connect.Response[gen.Extensions], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.InstallExampleExtension is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) OpenExtensionPanel(context.Context, *connect.Request[gen.OpenExtensionPanelRequest]) (*connect.Response[gen.ExtensionPanelSession], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.OpenExtensionPanel is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ListWorkspaceRepositories(context.Context, *connect.Request[gen.ListWorkspaceRepositoriesRequest]) (*connect.Response[gen.WorkspaceRepositories], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ListWorkspaceRepositories is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RequestRepository(context.Context, *connect.Request[gen.RequestRepositoryRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RequestRepository is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitRepositoryRequest(context.Context, *connect.Request[gen.WaitRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitRepositoryRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) DeclineRepositoryRequest(context.Context, *connect.Request[gen.DeclineRepositoryRequestRequest]) (*connect.Response[gen.RepositoryRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DeclineRepositoryRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) RequestConversationStart(context.Context, *connect.Request[gen.RequestConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.RequestConversationStart is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WaitConversationStart(context.Context, *connect.Request[gen.WaitConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WaitConversationStart is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) AnswerConversationStart(context.Context, *connect.Request[gen.AnswerConversationStartRequest]) (*connect.Response[gen.ConversationStartRequest], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.AnswerConversationStart is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) WatchBrowser(context.Context, *connect.Request[gen.WatchBrowserRequest], *connect.ServerStream[gen.BrowserEvent]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.WatchBrowser is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ControlBrowser(context.Context, *connect.Request[gen.ControlBrowserRequest]) (*connect.Response[gen.BrowserState], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ControlBrowser is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SendBrowserInput(context.Context, *connect.Request[gen.BrowserInputRequest]) (*connect.Response[gen.BrowserState], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SendBrowserInput is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) DecideBrowserRequest(context.Context, *connect.Request[gen.DecideBrowserRequestRequest]) (*connect.Response[gen.BrowserState], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.DecideBrowserRequest is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) GetBrowserSettings(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.BrowserSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.GetBrowserSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) SaveBrowserSettings(context.Context, *connect.Request[gen.BrowserSettings]) (*connect.Response[gen.BrowserSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.SaveBrowserSettings is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) ClearBrowserData(context.Context, *connect.Request[gen.ClearBrowserDataRequest]) (*connect.Response[gen.BrowserSettings], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.ClearBrowserData is not implemented"))
+}
+
+func (UnimplementedRunnerServiceHandler) InstallBrowser(context.Context, *connect.Request[gen.InfoRequest]) (*connect.Response[gen.CommandStatus], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("lazybox.bench.v1.RunnerService.InstallBrowser is not implemented"))
 }

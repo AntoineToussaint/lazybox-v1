@@ -51,3 +51,141 @@ test('tool result previews are bounded before journaling',()=>{
  const status=new NativeStatus();const result=status.normalize(message({type:'user',message:{content:[{type:'tool_result',tool_use_id:'big',content:'x'.repeat(1000000)}]}}));
  const text=JSON.stringify(result);assert.ok(text.length<34000);assert.match(text,/Tool preview truncated/);
 });
+
+test('a sub-agent\'s tool calls, results and text are attributed through parent_tool_use_id', () => {
+  const status = new NativeStatus();
+  status.normalize(message({ type: 'system', subtype: 'init', session_id: 'root-native' }));
+  const call = status.normalize(message({ type: 'assistant', parent_tool_use_id: 'spawn', message: { id: 'm1', model: 'm', content: [{ type: 'text', text: 'Looking at the reader.' }, { type: 'thinking', thinking: 'PRIVATE' }, { type: 'tool_use', id: 'read-1', name: 'Read', input: { file_path: 'a.ts' } }] } }));
+  assert.equal(JSON.stringify(call).includes('PRIVATE'), false);
+  const text = call.find(e => e.type === 'message_delta');
+  assert.deepEqual([text?.agentId, text?.parentAgentId, text?.text], ['claude-tool:spawn', 'root', 'Looking at the reader.']);
+  const tool = call.find(e => e.type === 'tool_activity');
+  assert.equal(tool?.agentId, 'claude-tool:spawn'); assert.equal((tool?.data as any).id, 'read-1');
+  const result = status.normalize(message({ type: 'user', parent_tool_use_id: 'spawn', message: { content: [{ type: 'tool_result', tool_use_id: 'read-1', content: 'ok' }] } }));
+  assert.equal(result[0].agentId, 'claude-tool:spawn'); assert.equal((result[0].data as any).status, 'completed');
+  // The main agent's text is never taken from whole messages: it streams.
+  const root = status.normalize(message({ type: 'assistant', parent_tool_use_id: null, message: { id: 'm2', model: 'm', content: [{ type: 'text', text: 'root text' }] } }));
+  assert.equal(root.some(e => e.type === 'message_delta'), false);
+});
+test('streamed sub-agent text is not repeated by its complete message', () => {
+  const status = new NativeStatus();
+  const streamed = status.normalize(message({ type: 'stream_event', parent_tool_use_id: 'spawn', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'streamed' } } }));
+  assert.equal(streamed.filter(e => e.type === 'message_delta').length, 1);
+  const whole = status.normalize(message({ type: 'assistant', parent_tool_use_id: 'spawn', message: { id: 'm', model: 'm', content: [{ type: 'text', text: 'streamed' }] } }));
+  assert.equal(whole.filter(e => e.type === 'message_delta').length, 0);
+  const next = status.normalize(message({ type: 'assistant', parent_tool_use_id: 'spawn', message: { id: 'm2', model: 'm', content: [{ type: 'text', text: 'forwarded' }] } }));
+  assert.equal(next.find(e => e.type === 'message_delta')?.text, 'forwarded');
+});
+test('task events carry the brief, progress, usage and outcome', () => {
+  const status = new NativeStatus();
+  const [started] = status.normalize(message({ type: 'system', subtype: 'task_started', task_id: 't', tool_use_id: 'spawn', description: 'Find the bug', subagent_type: 'Explore', task_type: 'local_agent', prompt: 'p'.repeat(9000), is_backgrounded: false, spawn_depth: 1 }));
+  assert.equal(started.agentId, 'claude-tool:spawn'); assert.equal(started.name, 'Find the bug');
+  const data = started.data as any;
+  assert.equal(data.toolUseId, 'spawn'); assert.equal(data.subagentType, 'Explore'); assert.equal(data.backgrounded, false); assert.equal(data.depth, 1); assert.equal(data.taskType, 'local_agent');
+  assert.equal(data.prompt.length, 8001); assert.ok(data.prompt.endsWith('…'));
+  const [progress] = status.normalize(message({ type: 'system', subtype: 'task_progress', task_id: 't', tool_use_id: 'spawn', description: 'Find the bug', usage: { total_tokens: 1200, tool_uses: 3, duration_ms: 4000 }, last_tool_name: 'Grep', summary: 'Reading the reader' }));
+  assert.equal(progress.status, 'running');
+  assert.deepEqual(progress.data, { toolUseId: 'spawn', usage: { totalTokens: 1200, toolUses: 3, durationMs: 4000 }, lastTool: 'Grep', summary: 'Reading the reader' });
+  const [done] = status.normalize(message({ type: 'system', subtype: 'task_notification', task_id: 't', tool_use_id: 'spawn', status: 'failed', output_file: '', summary: 'It broke', usage: { total_tokens: 2000, tool_uses: 5, duration_ms: 9000 } }));
+  assert.equal(done.status, 'failed');
+  assert.deepEqual(done.data, { toolUseId: 'spawn', summary: 'It broke', usage: { totalTokens: 2000, toolUses: 5, durationMs: 9000 } });
+  // A nested spawn names its parent.
+  const [nested] = status.normalize(message({ type: 'system', subtype: 'task_started', task_id: 'n', tool_use_id: 'inner', parent_task_id: 't', description: 'Inner' }));
+  assert.equal(nested.parentAgentId, 'claude-tool:spawn');
+  // A background command says where its output is kept.
+  status.normalize(message({ type: 'system', subtype: 'task_started', task_id: 'b', tool_use_id: 'bash-1', description: 'pytest tests', task_type: 'local_bash' }));
+  const [bash] = status.normalize(message({ type: 'system', subtype: 'task_notification', task_id: 'b', tool_use_id: 'bash-1', status: 'completed', output_file: '/tmp/tasks/b.output', summary: '' }));
+  assert.equal((bash.data as { outputFile?: string }).outputFile, '/tmp/tasks/b.output');
+});
+test('task_updated moves a known task and reports its error, once', () => {
+  const status = new NativeStatus();
+  assert.deepEqual(status.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 'unknown', patch: { status: 'killed' } })), []);
+  status.normalize(message({ type: 'system', subtype: 'task_started', task_id: 't', tool_use_id: 'spawn', run_id: '002', description: 'Work' }));
+  assert.deepEqual(status.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 't', patch: { status: 'running' } })), [], 'no change, no event');
+  assert.deepEqual(status.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 't', run_id: '001', patch: { status: 'killed' } })), [], 'a late run is ignored');
+  assert.deepEqual(status.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 't', patch: { status: 'paused' } })), []);
+  const [killed] = status.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 't', run_id: '002', patch: { status: 'killed' } }));
+  assert.deepEqual([killed.agentId, killed.status], ['claude-tool:spawn', 'stopped']);
+  assert.deepEqual(status.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 't', run_id: '002', patch: { status: 'running' } })), [], 'a finished run stays finished');
+  const [failed] = status.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 't', patch: { status: 'failed', error: 'boom' } }));
+  assert.deepEqual([failed.status, failed.data], ['failed', { error: 'boom' }]);
+  for (const [patch, expected] of [['completed', 'done'], ['pending', 'starting']]) {
+    const s = new NativeStatus();
+    s.normalize(message({ type: 'system', subtype: 'task_started', task_id: 'x', description: 'X' }));
+    assert.equal(s.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 'x', patch: { status: patch } }))[0].status, expected);
+  }
+});
+
+test('a compaction says how far the context shrank; a sub-agent compaction does not', () => {
+  const status = new NativeStatus();
+  const events = status.normalize(message({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'manual', pre_tokens: 156000, post_tokens: 61000, duration_ms: 4200 } }));
+  assert.deepEqual(events.find(e => e.type === 'compacted')?.data, { trigger: 'manual', preTokens: 156000, postTokens: 61000, durationMs: 4200 });
+  const auto = status.normalize(message({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 190000 } }));
+  assert.deepEqual(auto.find(e => e.type === 'compacted')?.data, { trigger: 'auto', preTokens: 190000 });
+  const child = status.normalize(message({ type: 'system', subtype: 'compact_boundary', parent_tool_use_id: 'tool-9', compact_metadata: { trigger: 'auto', pre_tokens: 1 } }));
+  assert.equal(child.some(e => e.type === 'compacted'), false);
+});
+
+test("a slash command's printed output is the agent's answer, bounded", () => {
+  const status = new NativeStatus();
+  const [said] = status.normalize(message({ type: 'system', subtype: 'local_command_output', content: 'Session cost: $0.12' }));
+  assert.equal(said.type, 'message_delta'); assert.equal(said.text, 'Session cost: $0.12');
+  const [long] = status.normalize(message({ type: 'system', subtype: 'local_command_output', content: 'x'.repeat(70000) }));
+  assert.ok(long.text!.length < 66000 && long.text!.endsWith('[Output truncated]'));
+  assert.deepEqual(status.normalize(message({ type: 'system', subtype: 'local_command_output', content: '' })), []);
+});
+
+test('a forked Skill is a sub-agent from its first word to its call\'s result', () => {
+  // Claude reports no task for a Skill run with `context: fork`: only the
+  // call, the child's own messages under it, and the call's result.
+  const status = new NativeStatus();
+  status.normalize(message({ type: 'assistant', parent_tool_use_id: null, message: { id: 'm1', model: 'm', content: [{ type: 'tool_use', id: 'skill-1', name: 'Skill', input: { skill: 'code-review', args: 'medium' } }] } }));
+  const first = status.normalize(message({ type: 'assistant', parent_tool_use_id: 'skill-1', message: { id: 'm2', model: 'm', content: [{ type: 'tool_use', id: 'grep-1', name: 'Bash', input: { command: 'grep -n x' } }] } }));
+  assert.deepEqual(first[0], { sessionId: '', type: 'agent_status', agentId: 'claude-tool:skill-1', parentAgentId: 'root', status: 'running', name: 'code-review', agentKind: 'skill', data: { toolUseId: 'skill-1' } }, 'its start comes before its first step');
+  assert.equal(first.filter(e => e.type === 'agent_status').length, 1);
+  const again = status.normalize(message({ type: 'user', parent_tool_use_id: 'skill-1', message: { content: [{ type: 'tool_result', tool_use_id: 'grep-1', content: 'x' }] } }));
+  assert.equal(again.some(e => e.type === 'agent_status'), false, 'said once');
+  const end = status.normalize(message({ type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: 'skill-1', content: 'Skill "code-review" completed (forked execution).' }] } }));
+  assert.deepEqual(end.filter(e => e.type === 'agent_status').map(e => [e.agentId, e.status]), [['claude-tool:skill-1', 'done']]);
+  const turn = status.normalize(message({ type: 'result', subtype: 'success', is_error: false, uuid: 'r', modelUsage: {} }));
+  assert.equal(turn.some(e => e.type === 'agent_status'), false, 'nothing is left to end');
+});
+
+test('a Task\'s own events before its task_started do not make a forked run', () => {
+  const status = new NativeStatus();
+  status.normalize(message({ type: 'assistant', parent_tool_use_id: null, message: { id: 'm1', model: 'm', content: [{ type: 'tool_use', id: 'spawn', name: 'Task', input: { description: 'Find' } }] } }));
+  const early = status.normalize(message({ type: 'assistant', parent_tool_use_id: 'spawn', message: { id: 'm2', model: 'm', content: [{ type: 'text', text: 'hi' }] } }));
+  assert.equal(early.some(e => e.type === 'agent_status'), false);
+});
+
+test('the end of a turn ends what it blocked on, never background work', () => {
+  const status = new NativeStatus();
+  const start = (task: string, call: string, extra: object) => status.normalize(message({ type: 'system', subtype: 'task_started', task_id: task, tool_use_id: call, description: task, task_type: 'local_agent', ...extra }));
+  start('fg', 'call-fg', { is_backgrounded: false });
+  start('bg', 'call-bg', { is_backgrounded: true });
+  start('moved', 'call-moved', { is_backgrounded: false });
+  start('unsaid', 'call-unsaid', {});
+  start('cmd', 'call-cmd', { is_backgrounded: false, task_type: 'local_bash' });
+  start('done', 'call-done', { is_backgrounded: false });
+  status.normalize(message({ type: 'system', subtype: 'task_notification', task_id: 'done', tool_use_id: 'call-done', status: 'completed', summary: '' }));
+  // Moved to the background while it ran: the clients are told, and it outlives the turn.
+  const [moved] = status.normalize(message({ type: 'system', subtype: 'task_updated', task_id: 'moved', patch: { is_backgrounded: true } }));
+  assert.deepEqual([moved.agentId, moved.status, moved.data], ['claude-tool:call-moved', 'running', { backgrounded: true }]);
+  // A forked run still going when the turn ends (an interrupted turn) ends too.
+  status.normalize(message({ type: 'assistant', parent_tool_use_id: null, message: { id: 'm1', model: 'm', content: [{ type: 'tool_use', id: 'skill', name: 'Skill', input: { skill: 'review' } }] } }));
+  status.normalize(message({ type: 'assistant', parent_tool_use_id: 'skill', message: { id: 'm2', model: 'm', content: [{ type: 'text', text: 'Looking' }] } }));
+  const turn = status.normalize(message({ type: 'result', subtype: 'error_during_execution', is_error: true, uuid: 'r', modelUsage: {}, errors: [] }));
+  const ended = turn.filter(e => e.type === 'agent_status');
+  assert.deepEqual(ended.map(e => [e.agentId, e.status, (e.data as { reason?: string }).reason]), [
+    ['claude-tool:skill', 'unknown', 'turn_ended'], ['claude-tool:call-fg', 'unknown', 'turn_ended'], ['claude-tool:call-cmd', 'unknown', 'turn_ended'],
+  ]);
+  assert.ok(turn.findIndex(e => e.type === 'turn_ended') > turn.findIndex(e => e.type === 'agent_status'), 'ended before the turn says it ended');
+  // Said once: the next turn's end has nothing left to end.
+  assert.equal(status.normalize(message({ type: 'result', subtype: 'success', is_error: false, uuid: 'r2', modelUsage: {} })).some(e => e.type === 'agent_status'), false);
+  // A task the level lists as background is never ended by a turn.
+  const level = new NativeStatus();
+  level.normalize(message({ type: 'system', subtype: 'task_started', task_id: 'x', tool_use_id: 'cx', description: 'x', task_type: 'local_agent', is_backgrounded: false }));
+  const [listed] = level.normalize(message({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'x', task_type: 'local_agent', description: 'x' }] }));
+  assert.deepEqual(listed.data, { backgrounded: true });
+  assert.equal(level.normalize(message({ type: 'result', subtype: 'success', is_error: false, uuid: 'r', modelUsage: {} })).some(e => e.type === 'agent_status'), false);
+});

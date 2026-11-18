@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/journal"
 )
 
 // DeleteConversation stops owned execution before deleting Lazybox transcripts.
@@ -92,20 +94,46 @@ func (b *Bench) deleteLocked(ctx context.Context, head *Execution, stop bool) er
 	return b.purgeConversation(ids)
 }
 func (b *Bench) purgeConversation(ids []string) error {
+	// A deleted conversation's attempts end, and what was said in it is forgotten.
+	b.forgetConversation(ids...)
+	if b.Browser != nil {
+		for _, id := range ids {
+			b.Browser.Forget(id)
+		}
+	}
 	for _, id := range ids {
 		// IDs come exclusively from the durable store, but still constrain deletion
 		// to one direct child of the Runner's session directory.
 		if id == "" || filepath.Base(id) != id || id == "." || id == ".." {
 			return errors.New("invalid stored execution identity")
 		}
-		if err := os.Remove(filepath.Join(b.Config.State, "sessions", id+".jsonl")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		// Every segment of the journal, and what was torn from it.
+		if err := journal.Remove(b.journalPath(id)); err != nil {
 			return err
 		}
 		// The re-attachment record can hold queued message text and image bytes.
 		if err := os.Remove(b.attachmentPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		// So can the messages a lost agent never received (agentLost).
+		if err := os.Remove(b.carriedPath(id)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 		if err := b.Attachments.Delete(id); err != nil {
+			return err
+		}
+		// Full-output files hold the conversation's unredacted command output.
+		if err := b.removeOutput(id); err != nil {
+			return err
+		}
+		// Checkpoint refs hold the conversation's files in its repositories.
+		if b.Checkpoints != nil {
+			if err := b.Checkpoints.Delete(b.ctx, id); err != nil {
+				return err
+			}
+		}
+		// The deletion record already revokes the credential; drop its copy too.
+		if err := b.removeAgentEndpoint(id); err != nil {
 			return err
 		}
 	}

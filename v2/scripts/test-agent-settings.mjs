@@ -1,7 +1,8 @@
 // Browser UX against an isolated RPC fixture; no local credentials or inference.
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
-import {chromium,expect} from '@playwright/test';
+import {chromium,expect} from './fixtures/playwright.mjs';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
@@ -9,7 +10,7 @@ import {startRunnerFixture} from './fixtures/runner-ui.mjs';
 const fixture=await startRunnerFixture();
 fixture.library.splice(0,fixture.library.length,...['api','web'].map((name,i)=>({id:i?'frontend':'backend',name,gitIdentity:`github:team/${name}`,sourceUrl:`https://github.com/team/${name}`,path:`/fixture/${name}`})));
 fixture.profiles.push({id:'saved-codex',provider:'codex',label:'Codex personal',managed:true,isolation:'environment'});
-const server=await createServer({configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
+const server=await createServer({...testViteCache(import.meta.url),configFile:false,root:fileURLToPath(new URL('../apps/web',import.meta.url)),plugins:[react()],server:{host:'127.0.0.1',port:0,proxy:{'/lazybox.bench.v1.RunnerService/':{target:fixture.url}}}});
 let browser;
 try{
  await server.listen();browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1450,height:1000}});page.setDefaultTimeout(10000);
@@ -21,21 +22,29 @@ try{
  await api.check();await expect(name).toHaveValue('api');await api.uncheck();await web.check();await expect(name).toHaveValue('web');
  await api.check();await expect(name).toHaveValue('web + api');await name.fill('My feature');await api.uncheck();await expect(name).toHaveValue('My feature');
  await expect(dialog.getByLabel('Name suggestion')).toHaveCount(0);
- await dialog.locator('label').filter({has:page.getByRole('checkbox',{name:'team/api',exact:true})}).dblclick();await expect(api).toBeChecked();await expect(web).toBeChecked();await expect(name).toHaveValue('My feature');
- await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+ // Double-clicking a repository chooses it and creates the workspace at once, keeping the typed name.
+ await dialog.locator('label').filter({has:page.getByRole('checkbox',{name:'team/api',exact:true})}).dblclick();await expect(dialog).toHaveCount(0);
+ await expect(page.locator('.workspace-row').filter({hasText:'My feature'})).toBeVisible();
  await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('tab',{name:'Agents & workspaces',exact:true}).click();
  await page.getByLabel('Suggested workspace names').selectOption('generated');await page.getByLabel('Default permissions').selectOption('yolo');
  await page.getByLabel('Lazybox context for every new agent').fill('Shared workspace rules');await page.getByLabel('Additional Claude context').fill('Claude-specific instructions');
+ // claude.ai connectors stay out of Lazybox sessions until the person turns them on.
+ const connectors=page.getByRole('switch',{name:'Use my claude.ai connectors in Lazybox sessions'});
+ await expect(connectors).not.toBeChecked();await mkdir('.cache',{recursive:true});await page.locator('.settings-row').filter({has:connectors}).screenshot({path:'.cache/agent-settings-connectors.png'});
  await page.getByRole('button',{name:'Save agent settings'}).click();await expect(page.getByRole('status').filter({hasText:'Agent settings saved.'})).toBeVisible();
+ assert.equal(fixture.mutations.findLast(m=>m.method==='SaveRunnerSettings').body.claudeAiConnectors??false,false);
+ await connectors.check();await page.getByRole('button',{name:'Save agent settings'}).click();await expect(page.getByRole('status').filter({hasText:'Agent settings saved.'})).toBeVisible();
+ assert.equal(fixture.mutations.findLast(m=>m.method==='SaveRunnerSettings').body.claudeAiConnectors,true);
+ await connectors.uncheck();await page.getByRole('button',{name:'Save agent settings'}).click();await expect(page.getByRole('status').filter({hasText:'Agent settings saved.'})).toBeVisible();
  await page.getByRole('navigation',{name:'Pages'}).getByRole('button').first().click();await page.getByRole('button',{name:'New workspace',exact:true}).click();await expect(name).toHaveValue('gentle-copper-otter');await api.check();await expect(name).toHaveValue('gentle-copper-otter');await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
- await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('tab',{name:'Pricing',exact:true}).click();await page.getByLabel('Exact model ID').fill('claude-fable-5-1');
+ await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('tab',{name:'Pricing',exact:true}).click();await page.getByRole('button',{name:'Add model price',exact:true}).click();await page.getByLabel('Exact model ID').fill('claude-fable-5-1');
  for(const [label,value] of [['Input','10'],['Output','50'],['Cache read','0.25'],['Cache write · 5 minutes','12.5'],['Cache write · 1 hour','20']])await page.getByLabel(label,{exact:true}).fill(value);
  await page.getByRole('button',{name:'Save model price',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Model price saved.'})).toBeVisible();
  const price=fixture.mutations.findLast(m=>m.method==='SetModelPrice').body.price;assert.equal(price.input,'10000');assert.equal(price.cacheRead,'250');assert.equal(price.cacheWrite5m,'12500');
  await mkdir('.cache',{recursive:true});await page.screenshot({path:'.cache/agent-pricing-settings.png'});
  await page.getByRole('button',{name:'New conversation',exact:true}).click();const setup=page.getByRole('dialog',{name:'New conversation',exact:true});await page.screenshot({path:'.cache/agent-startup.png'});
- await setup.getByRole('combobox',{name:'Agent',exact:true}).selectOption('codex');await setup.getByLabel('Account profile').selectOption('saved-codex');
- await setup.getByRole('combobox',{name:'Permissions',exact:true}).selectOption('yolo');await setup.getByText('Model, gateway & context',{exact:true}).click();await setup.getByLabel('Additional session context').fill('Inspect this workspace');
+ await setup.getByRole('combobox',{name:'Agent',exact:true}).click();await setup.getByRole('option',{name:/^Codex/}).click();await setup.getByLabel('Account profile').selectOption('saved-codex');
+ await setup.getByRole('combobox',{name:'Permissions',exact:true}).selectOption('yolo');await setup.getByText('Model & context',{exact:true}).click();await setup.getByLabel('Additional session context').fill('Inspect this workspace');
  await setup.getByRole('button',{name:'Start Codex ↗',exact:true}).click();await expect(setup).not.toBeVisible();
  let opened=fixture.mutations.findLast(m=>m.method==='OpenSession').body;assert.equal(opened.options.permission,'yolo');assert.equal(opened.options.instructions,'Inspect this workspace');
  // Reset the explicitly saved Runner default; one-off session YOLO must not be remembered.

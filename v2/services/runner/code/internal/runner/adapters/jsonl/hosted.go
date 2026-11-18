@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"time"
 
+	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
 	"github.com/AntoineToussaint/lazybox/v2/internal/processguard"
 	"github.com/AntoineToussaint/lazybox/v2/internal/redact"
 	"github.com/AntoineToussaint/lazybox/v2/internal/sessionhost"
@@ -20,17 +21,25 @@ var ErrDetached = sessionhost.ErrDetached
 // route provider traffic through a Runner-local gateway point the agent at
 // ProxyURL, which stays valid for the life of the session.
 type Host struct {
-	root   string
-	client *sessionhost.Client
+	root    string
+	backend sessionhost.Backend
+	client  *sessionhost.Client
 }
 
 // Launch starts a detached session host under root.
 func Launch(ctx context.Context, root string) (*Host, error) {
-	c, err := sessionhost.Launch(ctx, root, sessionhost.Options{})
+	return LaunchOn(ctx, nil, root, sessionhost.Options{})
+}
+
+// LaunchOn starts a session host under root with backend (the default when
+// nil), recording opts for the Runner's process inventory.
+func LaunchOn(ctx context.Context, backend sessionhost.Backend, root string, opts sessionhost.Options) (*Host, error) {
+	backend = sessionhost.Use(backend)
+	c, err := backend.Launch(ctx, root, opts)
 	if err != nil {
 		return nil, err
 	}
-	return &Host{root: root, client: c}, nil
+	return &Host{root: root, backend: backend, client: c}, nil
 }
 
 func (h *Host) ProxyURL() string { return h.client.ProxyURL() }
@@ -39,7 +48,7 @@ func (h *Host) ProxyURL() string { return h.client.ProxyURL() }
 func (h *Host) Abandon() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = sessionhost.Stop(ctx, h.root, h.client.ID())
+	_ = h.backend.Stop(ctx, h.root, h.client.ID())
 	_ = h.client.Detach()
 }
 
@@ -47,17 +56,35 @@ func (h *Host) Abandon() {
 // stops the agent: only an explicit Detach (or the Runner dying outright)
 // leaves it running for a later Runner.
 func (h *Host) Start(ctx context.Context, binary string, args, env []string, cwd string) (*Process, error) {
+	return h.StartWith(ctx, binary, args, env, cwd, Options{})
+}
+
+// StartWith is Start speaking the dialect opts describes.
+func (h *Host) StartWith(ctx context.Context, binary string, args, env []string, cwd string, opts Options) (*Process, error) {
 	if err := h.client.Spawn(ctx, sessionhost.Spec{Path: binary, Args: args, Env: env, Cwd: cwd}); err != nil {
 		h.Abandon()
 		return nil, err
 	}
-	return hosted(ctx, h.root, h.client, 0), nil
+	return hosted(ctx, h.backend, h.root, h.client, 0, opts), nil
 }
 
 // Attach re-connects to a host started by an earlier Runner. ack is the highest
 // transport cursor this Runner has durably recorded.
 func Attach(ctx context.Context, root, id string, ack uint64) (*Process, error) {
-	c, err := sessionhost.Attach(ctx, root, id, ack)
+	return AttachOn(ctx, nil, root, id, ack)
+}
+
+// AttachOn is Attach through backend (the default when nil). Any backend
+// re-attaches a host any other one started.
+func AttachOn(ctx context.Context, backend sessionhost.Backend, root, id string, ack uint64) (*Process, error) {
+	return AttachWith(ctx, backend, root, id, ack, Options{})
+}
+
+// AttachWith is AttachOn speaking the dialect opts describes; a host is
+// re-attached with the options it was started with.
+func AttachWith(ctx context.Context, backend sessionhost.Backend, root, id string, ack uint64, opts Options) (*Process, error) {
+	backend = sessionhost.Use(backend)
+	c, err := backend.Attach(ctx, root, id, ack)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +92,7 @@ func Attach(ctx context.Context, root, id string, ack uint64) (*Process, error) 
 		_ = c.Detach()
 		return nil, errors.New("session host never started its agent")
 	}
-	p := hosted(ctx, root, c, ack)
+	p := hosted(ctx, backend, root, c, ack, opts)
 	// The previous Runner's calls may still be answered on this host. Start
 	// this Runner's request IDs elsewhere, so a late reply to one of them is
 	// never taken for the answer to a new call.
@@ -77,8 +104,8 @@ func Attach(ctx context.Context, root, id string, ack uint64) (*Process, error) 
 
 // hosted wraps a host connection. ack is the cursor already recorded, set
 // before the reader starts.
-func hosted(ctx context.Context, root string, c *sessionhost.Client, ack uint64) *Process {
-	p := &Process{host: c, hostRoot: root, commit: ack, pending: map[string]chan Message{}, events: make(chan Message, 256), done: make(chan struct{}), exited: make(chan struct{}), stderr: &redact.Tail{}}
+func hosted(ctx context.Context, backend sessionhost.Backend, root string, c *sessionhost.Client, ack uint64, opts Options) *Process {
+	p := &Process{opts: opts, host: c, hostBackend: backend, hostRoot: root, commit: ack, pending: map[string]chan Message{}, events: make(chan Message, 256), done: make(chan struct{}), exited: make(chan struct{}), stderr: &redact.Tail{}}
 	go p.readHosted()
 	go func() {
 		select {
@@ -121,7 +148,7 @@ func (p *Process) readHosted() {
 			if exit.Outcome.Error != "" {
 				exitErr = errors.New(exit.Outcome.Error)
 			}
-			reason := fmt.Errorf("native process exited (code %d%s)", exit.Outcome.ExitCode, signalSuffix(exit.Outcome.Signal))
+			reason := fmt.Errorf("%w (code %d%s)", agent.ErrProcessExited, exit.Outcome.ExitCode, signalSuffix(exit.Outcome.Signal))
 			if exit.Stderr != "" {
 				reason = fmt.Errorf("%w; adapter stderr: %s", reason, exit.Stderr)
 			}
@@ -151,9 +178,12 @@ func (p *Process) readHosted() {
 				case ch <- msg:
 				default:
 				}
+				// A reply has no event; it is recorded once the next event commits.
+				continue
 			}
-			// A reply has no event; it is recorded once the next event commits.
-			continue
+			if !p.opts.Unmatched {
+				continue
+			}
 		}
 		p.commitMu.Lock()
 		p.delivered = m.Seq
@@ -213,6 +243,16 @@ func (p *Process) Commit(seq uint64) {
 	}
 }
 
+// Resolve tells the host the peer no longer waits on its request id although
+// no reply was written (the peer resolved it itself, or its turn ended), so a
+// later Runner is not handed it again. A local pipe redelivers nothing.
+func (p *Process) Resolve(id json.RawMessage) error {
+	if p.host == nil || len(id) == 0 {
+		return nil
+	}
+	return p.host.Resolve(id)
+}
+
 // release lets the host of an exited agent go away and ends this connection.
 func (p *Process) release() {
 	p.releaseOnce.Do(func() {
@@ -255,6 +295,19 @@ func (p *Process) terminateHosted() error {
 		p.commitMu.Unlock()
 		if exitSeen {
 			p.release()
+			return p.exitErr
+		}
+		if errors.Is(p.exitErr, processguard.ErrCleanupUnconfirmed) {
+			// The connection to the host was lost, not the agent's exit seen:
+			// ask the host to stop it. A host that is gone took its agent's
+			// group with it, which confirms the exit; one that answers is
+			// stopped now. Either way a close can succeed.
+			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+			defer cancel()
+			if err := p.hostBackend.Stop(ctx, p.hostRoot, p.host.ID()); err != nil && !sessionhost.Gone(err) {
+				return fmt.Errorf("native exit remains unconfirmed: %w", err)
+			}
+			return nil
 		}
 		return p.exitErr
 	default:
@@ -263,7 +316,7 @@ func (p *Process) terminateHosted() error {
 	defer cancel()
 	// A fresh control connection supersedes this one, terminates the agent,
 	// waits for its exit and releases the host.
-	err := sessionhost.Stop(ctx, p.hostRoot, p.host.ID())
+	err := p.hostBackend.Stop(ctx, p.hostRoot, p.host.ID())
 	p.stop(errors.New("native process closed"))
 	_ = p.host.Detach()
 	select {

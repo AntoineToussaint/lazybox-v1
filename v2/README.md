@@ -1,102 +1,122 @@
-# Lazybox V2
+# Lazybox
 
-Lazybox V2 is a development environment across phone, iPad, laptop and multiple
-displays. The target is completing real work from the phone while execution
-continues on an available remote Runner. The **Hub**, owned by Obin platform V2,
-coordinates durable work; **Runners** execute it; **clients** provide different
-experiences over the same state.
+**One window for all your coding agents, across all your workspaces — and the
+place you check their work before it lands.** Run Claude Code and Codex side
+by side, see what each one actually did, and keep them running when you close
+the window or restart Lazybox.
 
-Start with the [November 9 audit](audits/2026-11-09/README.md),
-[device experience contract](DEVICE_EXPERIENCE.md) and current [roadmap](ROADMAP.md).
-They distinguish implemented source, the unapplied coordination candidate,
-verified behavior and required remote/mobile work. The iPhone package is still
-a scaffold; remote phone development is not implemented yet.
+> **Status: early preview, for a few testers.** Lazybox installs from this
+> repository with one command. Expect rough edges, and please
+> [tell us about them](#feedback). What to try first: the
+> [testers' guide](docs/testers.md).
 
-This folder contains the V2 plan and a runnable local Runner built as a Codefly `go-grpc` service, with Claude/Codex adapters, configurable metering gateways, generic file uploads, a Go test CLI, and a reusable React `AgentWindow` hosted by Tauri. Run `make desktop` after starting the Runner. A browser host supports surface tests. The external Hub contract, remote integration and mobile experience are current delivery work. See [Running](RUNNING.md) and [runtime evidence](RUNTIME_EVIDENCE.md).
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/images/hero-light.webp">
+  <img src="docs/images/hero.webp" alt="Lazybox: Workspaces above the Agents list on the left, a conversation with the agent's work folded into readable lines, its plan, and the artifact it published">
+</picture>
 
-The Runner now also owns **[Workspaces](WORKSPACES.md)**: a persistent root containing named worktrees from several repositories, independent of agent sessions. Creation, inspection, attachment, archive, and explicit ownership reconciliation are available through generated RPC and the CLI. The native workspace prototype supports workspace selection, configurable pages, detached chat windows, and independent command viewers. New workspace, Add repositories, and Settings → Repositories share one persistent catalog and picker. Search discovered GitHub or local repositories and create directly; the Runner prepares only selected sources, with progress and idempotent retry. GitHub access and local folder discovery are configured in Connections & folders.
+## Requirements
 
-The Runner also exposes application assistant conversations, provider-derived main/sub-agent status, persistent account availability, and explicitly enabled subscription rotation. Account enrollment is once per isolated profile; ordinary rotation does not run login again. The main **Settings → Subscriptions** tab adds named accounts and refreshes provider-reported usage/reset windows. **New session** starts in a retained empty Runner workspace with your selected account. See [Subscriptions](SUBSCRIPTIONS.md) for implemented boundaries and live-account validation limits.
+- An **Apple Silicon Mac** with **macOS 13.5** or later.
+- A **Claude Code** and/or **Codex** account. Lazybox brings Claude Code, which
+  only needs you to sign in; Codex is installed and signed in as usual.
+- To build: Xcode Command Line Tools, Go, Node.js and Rust. `make -C v2 install`
+  checks them and prints the command for anything missing.
 
-The first [GitHub integration](GITHUB.md) supports a private personal-token connection with no App installation or GitHub CLI, selected repository imports, and read-only issue/PR lists through the Go GitHub client. GitHub App device sign-in remains optional. [Working and Dev installations](ENVIRONMENTS.md) keep native identities, Runner state and source snapshots separate.
+## Install from source
 
-## Read the plan
+```sh
+git clone https://github.com/AntoineToussaint/lazybox.git
+cd lazybox
+make -C v2 install
+```
 
-The current local dogfooding slice includes conversation rename/search, retained
-history and native resume, persistent native pages/drafts across Runner port
-changes, workspace-wide local Git review, and metered usage. Start it with
-`make -C v2 dev` from the repository root. `make -C v2 check-dogfood` runs the
-deterministic gate; [Running](RUNNING.md#local-dogfooding-loop) describes the
-working loop and opt-in real-provider continuity check. The distributed Hub and
-full MVP remain separate roadmap milestones.
+The first build takes 5 to 10 minutes and needs about 8 GB of free disk
+space; no accounts, keys or secrets. `make -C v2 install` builds the app, installs it in
+`/Applications` (`PREFIX=~/Applications` for your account only), sets up its
+background service (the **Runner**, where your agents run), puts the
+`lazybox` command on your PATH and opens Lazybox. Then:
 
-| Document | Purpose |
+1. **Welcome.** Connect a subscription (your existing `claude` or `codex`
+   sign-in already works) and start your first task.
+2. **New task:** `⌘N`, type what you want, pick a repository, **Enter**.
+3. **Check its work:** `]] d` opens Changes.
+
+| Command | Does |
 | --- | --- |
-| [Current audit](audits/2026-11-09/README.md) | Code-backed findings, fresh checks, reproduced defects and delivery priorities. |
-| [Implementation packages](IMPLEMENTATION_ROADMAP.md) | Full phone-to-desktop delivery plan, Hub agent ownership, Codefly/Obin reuse and current implementation status. |
-| [Release validation](RELEASE_GATES.md) | One catalog for staging/local/CI entry points, per-gate receipts and promotion rules. |
-| [Device experience](DEVICE_EXPERIENCE.md) | Phone/iPad/desktop flows, portable state and proposed Hub boundary. |
-| [Product](PRODUCT.md) | The problem, working situations, participants, and product principles. |
-| [Architecture](ARCHITECTURE.md) | Component ownership, core objects, collaboration contracts, deployment, and recovery. |
-| [Implementation stack](STACK.md) | Selected Go services, shared React/TypeScript client, Tauri desktop, Expo iPhone, and surface ownership. |
-| [Source structure](STRUCTURE.md) | Actual folders, package boundaries, workspace setup, and scaffold checks. |
-| [Interfaces and RPC](INTERFACES.md) | Proposed generic Go agent contract and Protobuf/ConnectRPC communication. |
-| [Subscriptions and continuation](SUBSCRIPTIONS.md) | Account profiles, isolated credentials, native resume, and checkpoint handoff. |
-| [Session hosts](SESSION_HOSTS.md) | Agents and their commands outlive the Runner: re-attachment across restarts, delivery contract, upgrades, evidence. |
-| [Workspaces](WORKSPACES.md) | Runner-owned groups of worktrees across repositories, provisioning, attachment, and ownership. |
-| [Running the bench](RUNNING.md) | Launch, runner options, gateway routing, credentials, continuation, CLI, and retention. |
-| [Runtime evidence](RUNTIME_EVIDENCE.md) | Actual test results, pinned versions, and unverified acceptance paths. |
-| [First deliverable](FIRST_DELIVERABLE.md) | Runnable agent-and-console test bench and its completion evidence. |
-| [Agent sessions and consoles](EXECUTION.md) | Bidirectional agent control and shared shell output for agents and human consoles. |
-| [MVP](MVP.md) | The first complete product slice, explicit scope, acceptance scenarios, and release gates. |
-| [Roadmap](ROADMAP.md) | Dependencies, work packages, milestones, and expansion beyond the MVP. |
-| [Reuse audit](REUSE_AUDIT.md) | The audit required for every V1 component reused in V2, with an initial candidate inventory. |
-| [Decisions](DECISIONS.md) | Confirmed direction, proposed implementation defaults, and unresolved choices. |
+| `make -C v2 update` | Pull the newest commit, rebuild and reinstall. Your conversations and settings stay; running agents keep running. |
+| `make -C v2 uninstall` | Remove the app, the Runner service and the `lazybox` link. Your data stays; `PURGE=1` deletes it too (it asks first). |
+| `lazybox doctor` | Check the installation, with the fix for anything wrong. |
 
-Start with Product, then MVP. Use Architecture and the reuse audit to assess implementation choices. Roadmap defines the order of delivery. Decisions distinguishes agreed direction from proposals that still need validation.
+Prerequisites, options and where things are: [Install](docs/install.md#install-from-source).
 
-## Confirmed direction
+## What you get
 
-- Design around complex shared work and the coordination burden experienced in V1.
-- Make collaboration between several humans and several agents foundational.
-- Support beginning work in one place and continuing elsewhere.
-- Build a smart desktop client with independent windows, multiple screens, and substantial visual tools.
-- Make UI development practical through live application previews, screenshots, and contextual feedback.
-- Separate the shared coordination server, **Hub**, from execution servers, **Runners**.
-- Allow local and remote deployments, including several clients and several Runners.
-- Review and audit every piece of V1 code brought into V2.
-- Preserve the log-pipe workflow: agents can read command output while humans follow the same execution in live consoles.
-- Use Go for Hub and Runner, React/TypeScript for shared desktop/web surfaces, Tauri for the desktop host, and Expo/React Native for iPhone.
-- Share the client core and model personal surfaces explicitly so independent windows do not share navigation accidentally.
-- Support several account/subscription profiles and continue work through verified resume or an explicit checkpoint handoff when capacity runs out.
+**Many agents, one window.** Workspaces of one or several repositories, each
+in its own git worktrees, each with as many Claude or Codex conversations as
+you like. The inbox (`]] i`) and `⌘J` take you to whichever needs you next.
 
-## Scope and authority
+**A chat at least as good as the agent's own terminal.** Questions as option
+cards, approvals that show exactly what will run, *Send now* to steer a
+working agent, sub-agents as live cards. [Work in the chat →](docs/guides/chat.md)
 
-These documents describe the V2 proposal. Existing repository documentation continues to describe V1 unless it explicitly says otherwise. The V1 [positioning](../docs/positioning.md) and [desktop boundary](../docs/desktop-spike.md) are historical inputs to this redesign; their product assumptions do not settle V2 decisions.
+**Verify before you trust.** Review every change in a split diff, comment
+inline, have another agent review it (Codex checks Claude's work, and the
+other way round), undo any turn, then commit, push, open the pull request and
+watch its checks — without leaving the app. [Review an agent's work →](docs/guides/review-agent-work.md)
 
-Repository [AGENTS.md](../AGENTS.md), applicable area instructions, and the resolved agent policies continue to govern implementation and tracker operations. Local roadmap identifiers identify planning packages; they are not filed tracker records or implementation workspaces.
+<img src="docs/images/chat-decisions.webp" width="49%" alt="An agent's question as option cards"> <img src="docs/images/agent-review.webp" width="49%" alt="Codex's findings on Claude's change: the Review tray to triage them, a finding's card on its lines">
 
-The source scaffold stays in this repository with separate V2 Go/npm workspaces and entry-point locations, as recorded in [D01](DECISIONS.md#d01-repository-and-implementation-boundary). Existing uncommitted V1 work is outside this change.
+**Agents outlive everything.** Close the window, restart the Runner, install a
+new build: agents and the commands they started keep running, and Lazybox
+picks them up where they were.
 
-## Status
+**And:** versioned plans and reports as [artifacts](docs/guides/artifacts.md) ·
+[voice](docs/guides/voice.md), on-device · a `lazybox` [CLI](docs/reference/cli.md)
+that does what the app does · [extensions](docs/guides/extensions.md), panels
+of your own · [missions](docs/guides/missions.md) and
+[agents that run agents](docs/guides/orchestrator.md) *(preview)* · your
+[phone as a remote](docs/guides/phone.md) *(preview)*.
 
-| Area | Status |
-| --- | --- |
-| Product direction | Captured from the design discussion. |
-| Stack direction | Selected; native, provider, and transport integrations still need experimental evidence. |
-| MVP and delivery sequence | Proposed for review. |
-| Implementation | Local Runner, adapters, commands, generated RPC, CLI, reusable AgentWindow, and native Tauri host implemented. Hub and full desktop lifecycle remain open. |
-| V1 reuse | Narrow gateway behavior port reviewed; no V1 crate/runtime imported. See the audit record. |
-| Validation | Codex live scenarios and a real Claude reply through AgentWindow passed. Claude protocol cases also use a deterministic gateway. Full gate remains open for the broader live Claude suite and real multi-profile paths. |
+## Known limitations
 
-Product V2 is a product name. V1 already uses versioned storage and protocol names containing `v2`; those names do not establish V2 compatibility. V2 storage locations and configuration must be resolved explicitly and remain isolated during development.
+- **Mac only**, Apple Silicon only. No Windows, Linux or Intel Macs.
+- **No cloud.** The Runner and your agents run on your Mac; nothing is hosted.
+- **The phone is a web page**, reached over [Tailscale](docs/guides/phone.md);
+  there is no phone app.
+- **Gemini CLI, Goose and other ACP agents are a Preview**
+  ([guide](docs/guides/other-agents.md)); Claude Code and Codex are the agents
+  Lazybox is tested with.
+- **Builds from source update with `make -C v2 update`**, not in the app, and are signed
+  for your Mac only.
+- More in the testers' guide: [what not to rely on yet](docs/testers.md#what-not-to-rely-on-yet).
 
-The [agent-and-console test bench](FIRST_DELIVERABLE.md) is runnable. Its remaining acceptance evidence is listed separately from implemented behavior. The native multi-window proof follows that gate. The Runner RPC now uses Codefly's generated gRPC implementation and Connect listener; distributed Hub/Runner contracts remain proposed.
+## Documentation
 
-Run `make -C v2 check` to validate the implementation. See [Source structure](STRUCTURE.md#current-commands) for command scope and current limitations.
+**[The docs](docs/README.md)** — [getting started](docs/getting-started.md),
+[the testers' guide](docs/testers.md), concepts, guides,
+[keyboard shortcuts](docs/reference/keyboard-shortcuts.md),
+[the CLI](docs/reference/cli.md), [troubleshooting](docs/troubleshooting.md)
+and the [FAQ](docs/faq.md).
 
-The workspace sidebar collapses a single conversation into its workspace entry.
-Vim/tmux-style bindings are configurable in Settings → Shortcuts; `]]` leaves the
-composer and `]]s` opens snippets by default. The snippet picker reuses V1's
-canonical catalog through the read-only `lazybox-snippets` adapter. See
-[workspace navigation and snippets](WORKSPACES.md#compact-navigation-and-keyboard-controls).
+## Feedback
+
+**Help → Send feedback…** in the app writes a report you read before it goes
+anywhere, and can open a GitHub issue filled in with it. Or open an
+[issue](https://github.com/AntoineToussaint/lazybox/issues) yourself;
+[SUPPORT.md](../SUPPORT.md) says what to include. Security problems go
+privately, as [SECURITY.md](../SECURITY.md) describes.
+
+## Contributing
+
+`make -C v2 deps` and `make -C v2 dev` for a hot-reloading Dev app; [CONTRIBUTING.md](../CONTRIBUTING.md)
+has the setup, the tests and the conventions, and [AGENTS.md](../AGENTS.md)
+the rules for coding agents.
+
+## Preview terms
+
+Lazybox is proprietary software: see [LICENSE](../LICENSE). For this
+preview, the owner permits you to build Lazybox from this repository, install
+it on your own computer and use it to evaluate it, and to share feedback and
+bug reports. Everything else the LICENSE reserves stays reserved: please do not
+redistribute the code or your builds, or publish modified versions.

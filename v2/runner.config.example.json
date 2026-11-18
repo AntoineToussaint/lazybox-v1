@@ -8,5 +8,6 @@
   "defaultGateways": {},
   "repositories": [],
   "eventBudget": 8388608,
+  "eventHistoryBudget": 2147483648,
   "commandBudget": 8388608
 }

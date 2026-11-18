@@ -20,7 +20,7 @@ func (s *Service) GetTelemetry(ctx context.Context, r *pb.TelemetryRequest) (*pb
 	if scopes != 1 {
 		return nil, grpcError(codes.InvalidArgument, errors.New("select one workspace, conversation or execution"))
 	}
-	report, err := s.Bench.Telemetry.Report(ctx, telemetry.Query{Workspace: r.Workspace, Execution: r.Execution, Conversation: r.Conversation, Prices: s.Bench.Preferences.Rates()})
+	report, err := s.Bench.Telemetry.Report(ctx, telemetry.Query{Workspace: r.Workspace, Execution: r.Execution, Conversation: r.Conversation, Series: r.Series, Prices: s.Bench.Preferences.Rates()})
 	if err != nil {
 		return nil, rpcError(err)
 	}

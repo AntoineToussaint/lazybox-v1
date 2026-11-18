@@ -29,6 +29,19 @@ type Activity struct {
 	Status         Status    `json:"status"`
 	LastTurnStatus string    `json:"lastTurnStatus,omitempty"`
 	UpdatedAt      time.Time `json:"updatedAt"`
+	// TurnEndedAt is when the agent's last turn ended. Unlike UpdatedAt, no
+	// status report or Runner restart moves it.
+	TurnEndedAt time.Time `json:"turnEndedAt,omitzero"`
+	// TurnStartedAt is when the agent's current or last turn began.
+	TurnStartedAt time.Time `json:"turnStartedAt,omitzero"`
+	// Phase is what the agent reports doing inside a turn: working,
+	// requesting, thinking, responding, compacting or tool. It is empty
+	// between turns and while the agent waits for the person.
+	Phase string `json:"phase,omitempty"`
+	// Tool names the tool during the tool phase, when the provider reports it.
+	Tool string `json:"tool,omitempty"`
+	// PhaseSince is when Phase or Tool last changed.
+	PhaseSince time.Time `json:"phaseSince,omitzero"`
 }
 
 // AccountObservation only contains provider-reported account and availability facts, never

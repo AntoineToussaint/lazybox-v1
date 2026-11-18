@@ -16,7 +16,10 @@ func (s *Service) collectionStore() (*collections.Manager, error) {
 	return s.Bench.Collections, nil
 }
 func wireCollection(c collections.Collection) *pb.Collection {
-	w := &pb.Collection{Id: c.ID, Name: c.Name, WorkId: c.WorkID, Root: c.Root, State: c.State, Error: c.Error, OwnerExecutionId: c.OwnerExecutionID, OwnershipUncertain: c.OwnershipUncertain, OwnerExecutionIds: c.OwnerExecutionIDs}
+	w := &pb.Collection{Id: c.ID, Name: c.Name, WorkId: c.WorkID, Root: c.Root, State: c.State, Error: c.Error, OwnerExecutionId: c.OwnerExecutionID, OwnershipUncertain: c.OwnershipUncertain, OwnerExecutionIds: c.OwnerExecutionIDs, CreatedAtUnixMillis: c.CreatedAt}
+	if c.Origin != nil {
+		w.Origin = &pb.ItemRef{Provider: c.Origin.Provider, Key: c.Origin.Key}
+	}
 	for _, m := range c.Members {
 		w.Members = append(w.Members, &pb.CollectionWorktree{Spec: &pb.WorktreeSpec{Name: m.Name, RepositoryId: m.RepositoryID, BaseRef: m.BaseRef, Branch: m.Branch}, Path: m.Path, BaseCommit: m.BaseCommit, Ready: m.Ready})
 	}
@@ -29,7 +32,9 @@ func (s *Service) ListRepositories(ctx context.Context, r *pb.ListRepositoriesRe
 	}
 	w := &pb.ListRepositoriesResponse{}
 	for _, repo := range m.Repositories() {
-		w.Repositories = append(w.Repositories, wireRepository(repo, m.RepositoryIdentity(repo.ID)))
+		wire := wireRepository(repo, m.RepositoryIdentity(repo.ID))
+		wire.HomePath, wire.HomeKind = m.Home(repo.ID)
+		w.Repositories = append(w.Repositories, wire)
 	}
 	return w, nil
 }
@@ -48,10 +53,13 @@ func (s *Service) CreateCollection(ctx context.Context, r *pb.CreateCollectionRe
 		}
 		spec.Members = append(spec.Members, collections.MemberSpec{Name: member.Name, RepositoryID: member.RepositoryId, BaseRef: member.BaseRef, Branch: member.Branch})
 	}
+	s.Bench.RefreshBases(ctx, spec.Members)
 	c, err := m.Create(ctx, r.RequestKey, spec)
 	if err != nil {
 		return nil, rpcError(err)
 	}
+	// The worktrees exist: the workspace runtime copies files and starts setup.
+	_ = s.Bench.WorkspaceCreated(ctx, c.ID, nil, nil)
 	return &pb.CollectionResponse{Collection: wireCollection(c)}, nil
 }
 func (s *Service) GetCollection(ctx context.Context, r *pb.CollectionRequest) (*pb.CollectionResponse, error) {
@@ -72,6 +80,27 @@ func (s *Service) ListCollections(ctx context.Context, r *pb.ListCollectionsRequ
 	}
 	w := &pb.ListCollectionsResponse{}
 	for _, c := range m.List() {
+		w.Collections = append(w.Collections, wireCollection(c))
+	}
+	return w, nil
+}
+
+// ArrangeWorkspaces keeps the person's order of their workspaces: the one
+// ListCollections answers in, in every window and on a paired phone.
+func (s *Service) ArrangeWorkspaces(ctx context.Context, r *pb.ArrangeWorkspacesRequest) (*pb.ListCollectionsResponse, error) {
+	m, err := s.collectionStore()
+	if err != nil {
+		return nil, err
+	}
+	list, err := m.Arrange(r.CollectionIds)
+	if errors.Is(err, collections.ErrArrangementTooLong) {
+		return nil, grpcError(codes.InvalidArgument, err)
+	}
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	w := &pb.ListCollectionsResponse{}
+	for _, c := range list {
 		w.Collections = append(w.Collections, wireCollection(c))
 	}
 	return w, nil
@@ -128,9 +157,25 @@ func (s *Service) AddCollectionRepositories(ctx context.Context, r *pb.AddCollec
 		}
 		members = append(members, collections.MemberSpec{Name: member.Name, RepositoryID: member.RepositoryId, BaseRef: member.BaseRef, Branch: member.Branch})
 	}
+	before := map[string]bool{}
+	if existing, err := m.Get(r.CollectionId); err == nil {
+		for _, member := range existing.Members {
+			before[member.Name] = true
+		}
+	}
+	s.Bench.RefreshBases(ctx, members)
 	c, err := m.AddRepositories(ctx, r.CollectionId, r.RequestKey, members)
 	if err != nil {
 		return nil, rpcError(err)
+	}
+	added := []string{}
+	for _, member := range c.Members {
+		if !before[member.Name] {
+			added = append(added, member.Name)
+		}
+	}
+	if len(added) > 0 {
+		_ = s.Bench.WorkspaceCreated(ctx, c.ID, added, nil)
 	}
 	return &pb.CollectionResponse{Collection: wireCollection(c)}, nil
 }

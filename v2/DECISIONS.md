@@ -7,7 +7,7 @@ This log separates direction confirmed in the design discussion from implementat
 **2026-11-09 — C19 (user direction):** make development from the phone the target,
 with intentionally different phone, iPad and laptop/multi-display experiences.
 Remote continuity and mobile UX enter the first release. This supersedes the
-November 3 mobile deferral; C17's external Obin Hub ownership remains in force.
+November 3 mobile deferral; C17's external Hub ownership remains in force.
 [Device experience](DEVICE_EXPERIENCE.md) proposes the interaction and integration
 contract. The [audit](audits/2026-11-09/README.md) records current evidence; it does
 not approve a Hub API, backend framework replacement or the staged workflow.
@@ -34,7 +34,7 @@ not approve a Hub API, backend framework replacement or the staged workflow.
 
 ## Current scope corrections — 2026-11-03
 
-- **C17 (user direction):** build the shared Hub in Obin platform V2, not here.
+- **C17 (user direction):** build the shared Hub in a separate platform, not here.
   Local workflow experiments must not quietly become a competing Hub or claim
   distributed ownership. This supersedes older repository-placement assumptions.
 - **C18 (user direction):** the workspace is the primary UI unit, with multiple
@@ -52,7 +52,20 @@ not approve a Hub API, backend framework replacement or the staged workflow.
 
 The isolated workflow board experiment is not a disposition of D03, D07 or D08.
 It proves useful wiring and interactions, not fenced execution or verified
-integration. No framework replacement or Obin Hub API was selected by this review.
+integration. No framework replacement or external Hub API was selected by this review.
+
+## Remote control — 2026-11-16
+
+- **D16 (user direction, implemented as a first increment):** control a local
+  Runner from a phone. Transport: `tailscale serve` (tailnet-only HTTPS,
+  WireGuard end to end, never Funnel) in front of a loopback-only device
+  gateway that accepts paired device credentials alone. Pairing: one-time,
+  five-minute QR offer; the phone's non-extractable ECDSA P-256 key; 15-minute
+  credentials from signed single-use challenges; explicit read/respond/start
+  grants; revoke ends access at the next request. A LAN TLS listener was
+  rejected (no trusted origin on a phone, LAN exposure); a relay with Noise IK
+  is deferred to the native app, where the Runner key can be pinned in signed
+  code. Reopen if Tailscale is unacceptable as a dependency. See [Remote](REMOTE.md).
 
 ## Proposed implementation defaults
 
@@ -110,7 +123,7 @@ Use explicit transition tables and example races before encoding the model.
 
 **Status:** open. **Needed for:** V2 005 and M1.
 
-The Runner now uses Codefly `go-grpc:0.1.69`: Protobuf with generated Go/TypeScript clients, one native gRPC service implementation, and Codefly's Connect listener transcoding to that same implementation. The user requested reusing this service framework on 2026-10-27. The local React browser path has runtime evidence. Use unary commands and server streams for browser clients; evaluate a Runner-initiated gRPC bidirectional control stream for Hub/Runner traffic. [Interfaces](INTERFACES.md) records the proposal. Browser and iPhone streaming behavior must be verified rather than assuming native gRPC is portable to them.
+The Runner now uses Codefly `go-grpc:0.1.70` (0.1.69 until 2026-11-16, whose listeners bound every interface): Protobuf with generated Go/TypeScript clients, one native gRPC service implementation, and Codefly's Connect listener transcoding to that same implementation. The user requested reusing this service framework on 2026-10-27. The local React browser path has runtime evidence. Use unary commands and server streams for browser clients; evaluate a Runner-initiated gRPC bidirectional control stream for Hub/Runner traffic. [Interfaces](INTERFACES.md) records the proposal. Browser and iPhone streaming behavior must be verified rather than assuming native gRPC is portable to them.
 
 Settle schema generation, capability negotiation, event ordering, snapshot boundaries, replay retention, and cursor recovery. Define idempotency and conflict semantics independently of transport.
 

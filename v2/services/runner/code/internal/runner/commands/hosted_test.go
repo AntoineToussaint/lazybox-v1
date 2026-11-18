@@ -238,6 +238,30 @@ func TestClosingTheRunnerStillStopsHostedCommands(t *testing.T) {
 	waitFor(t, "the stopped command's host stayed", func() bool { ids, _ = sessionhost.Hosts(f.hosts); return len(ids) == 0 })
 }
 
+// A finished command's host exits on its own a moment after it is released.
+// It must not be listed in between: an inventory would show it, stopping it
+// would "succeed" and an orphan sweep would count it as stopped.
+func TestAFinishedCommandsHostIsNotListed(t *testing.T) {
+	f := newHosted(t)
+	m := f.open(t)
+	defer m.Close()
+	for i := 0; i < 5; i++ {
+		c, err := m.Start(Spec{SessionID: "s", Title: "quick", Cwd: t.TempDir(), Argv: []string{"/bin/sh", "-c", "echo done"}, Env: os.Environ()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		state, err := c.Wait(ctx)
+		cancel()
+		if err != nil || state.ExitCode == nil || *state.ExitCode != 0 {
+			t.Fatalf("command did not finish: %+v %v", state, err)
+		}
+		if ids, _ := sessionhost.Hosts(f.hosts); len(ids) != 0 {
+			t.Fatalf("run %d: a finished command's host is still listed: %v", i, ids)
+		}
+	}
+}
+
 // A host that died while no Runner was attached took its command with it. The
 // next Runner says so instead of waiting forever or claiming an exit status.
 func TestCommandWhoseHostDiedIsReportedUnknown(t *testing.T) {

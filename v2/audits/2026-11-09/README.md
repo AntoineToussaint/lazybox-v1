@@ -19,9 +19,9 @@ revision, approve integration, and return later without reconstructing context.
 The execution must be on an available remote Runner; a sleeping laptop cannot
 continue running its local processes.
 
-The Hub remains in **Obin platform V2**. Lazybox should implement its Runner and
+The Hub remains in **a separate platform**. Lazybox should implement its Runner and
 clients against an explicit Hub contract, not create another canonical tracker.
-No real Obin Hub API was validated by this audit. The proposed contract in
+No real Hub API was validated by this audit. The proposed contract in
 [Device experience](../../DEVICE_EXPERIENCE.md) is a design boundary, not an
 assertion about an existing service.
 
@@ -58,7 +58,7 @@ Digests use `scripts/environments.mjs::digestTree`, excluding runtime/build data
 | Coordination | Absent in main. Candidate has transactional board/receipts/events, role-tagged attempts and captured clean commits. Existing workflow tests pass. | Two newly reproduced correctness defects; no durable decision delivery, test provenance or integration receipts. |
 | Multi-model policy | Per-attempt account/model/permissions and observed model fields. | Named role policies, effort support, scope/budget validation and requested-versus-observed role configuration. |
 | Phone/iPad | iPhone package has a manifest and README only; no Expo app. Web layout stacks desktop panes. | Purpose-built flows, remote identity, lifecycle recovery, durable attention, notifications and real-device tests. |
-| Hub/remote | Proposed interfaces and local bearer-protected Runner RPC. | Enrollment, principals, revocation, remote routing, artifact availability and actual Obin contract tests. |
+| Hub/remote | Proposed interfaces and local bearer-protected Runner RPC. | Enrollment, principals, revocation, remote routing, artifact availability and actual Hub contract tests. |
 
 ## Release-blocking findings
 
@@ -248,7 +248,7 @@ native resume reloads saved options. It is not listed as a confirmed defect.
    scenario. Fix F1/F2/F4 and make the failure probes admission tests.
 2. **Ship a complete phone development loop.** One human on two devices, one
    always-on Runner, one writer, an independent review, durable questions,
-   committed diff/test artifacts/preview and explicit integration. Real Obin
+   committed diff/test artifacts/preview and explicit integration. Real Hub
    authentication and command delivery must pass before calling this remote
    dogfooding; a mock Hub cannot satisfy it.
 3. **Deepen the device experiences and bounded coordination.** iPad split view,

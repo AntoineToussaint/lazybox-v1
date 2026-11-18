@@ -1,26 +1,36 @@
-import {useEffect,useRef,useState} from 'react';
+import { conversationName } from './conversation-model';
+import {useEffect,useState} from 'react';
 import type {Session} from '@lazybox/protocol';
-import {DraggableDialog,DialogHeader} from './DraggableDialog';
+import {ConfirmDialog} from './ConfirmDialog';
+import {OwnershipPanel} from './OwnershipPanel';
 import {useRunner} from './RunnerContext';
 import {forgetConversation} from './transcript-cache';
+// Its tabs leave every page of this window (conversation-requests.ts).
+import {conversationOpeners} from './conversation-requests';
 export function DeleteConversationDialog({session,onClose,onDeleted}:{session:Session;onClose():void;onDeleted():void}){
- const {api,refresh}=useRunner(),dialog=useRef<HTMLDialogElement>(null);
- const cancel=useRef<HTMLButtonElement>(null);
- const [busy,setBusy]=useState(false),[error,setError]=useState(''),[checked,setChecked]=useState(false),[active,setActive]=useState(!session.closed),[blocked,setBlocked]=useState(''),[stop,setStop]=useState(false);
+ const {api,refresh}=useRunner();
+ const [error,setError]=useState(''),[checked,setChecked]=useState(false),[active,setActive]=useState(!session.closed),[recovery,setRecovery]=useState(false),[stop,setStop]=useState(false);
+ // Once what a previous Lazybox left unconfirmed is settled the conversation
+ // is checked again, and the panel is not shown a second time.
+ const [settled,setSettled]=useState(false);
  useEffect(()=>{
-  dialog.current?.showModal();cancel.current?.focus();const control=new AbortController();
+  const control=new AbortController();
   void Promise.all([api.getSession({sessionId:session.id},{signal:control.signal}),api.listCommands({sessionId:session.id},{signal:control.signal})]).then(([result,commands])=>{
    if(control.signal.aborted)return;
    setActive(!result.session?.closed||commands.commands.some(command=>!command.done));
-   setBlocked(result.session?.recoveryRequired?'Previous process ownership is unconfirmed. Reconcile this session before deleting it.':'');setChecked(true);
+   setRecovery(!!result.session?.recoveryRequired);setChecked(true);
   },error=>{if(!control.signal.aborted)setError(String(error));});return()=>control.abort();
- },[api,session.id]);
- return <DraggableDialog ref={dialog} className="delete-conversation-dialog" aria-label="Delete conversation" onCancel={event=>{if(busy)event.preventDefault();else onClose();}}>
- <DialogHeader><h2>Delete conversation?</h2><button disabled={busy} aria-label="Cancel conversation deletion" onClick={onClose}>×</button></DialogHeader>
- <p className="deletion-subject">{session.title||'Untitled conversation'}</p><p>Its messages and uploads will be removed from Lazybox.</p><p className="deletion-note">Workspace files, accounts, usage records and provider history are kept.</p>
- {!checked&&!error&&<p role="status">Checking running resources…</p>}
- {checked&&active&&<><p>This conversation has an active session or command.</p><label className="cleanup-choice"><input type="checkbox" checked={stop} disabled={busy} onChange={e=>setStop(e.target.checked)}/>Stop its agent and running commands before deleting</label></>}
- {blocked&&<p role="alert">{blocked}</p>}{error&&<p role="alert">{error}</p>}
- <footer><button ref={cancel} autoFocus disabled={busy} onClick={onClose}>Cancel</button><button className="danger" disabled={busy||!checked||!!blocked||(active&&!stop)} onClick={async()=>{setBusy(true);setError('');try{await api.deleteConversation({sessionId:session.id,stopSessions:stop},{timeoutMs:120000});forgetConversation(api,session.id);refresh();onDeleted();}catch(error){setError(String(error));}finally{setBusy(false);}}}>{busy?'Deleting…':active?'Stop and delete':'Delete conversation'}</button></footer>
- </DraggableDialog>;
+ },[api,session.id,settled]);
+ const unconfirmed=recovery&&!settled;
+ const live=checked&&active&&!unconfirmed;
+ return <ConfirmDialog title="Delete conversation?" label="Delete conversation" closeLabel="Cancel conversation deletion" subject={conversationName(session,'Untitled conversation')}
+  kept="Workspace files, accounts, usage records and provider history are kept."
+  status={!checked&&!error?'Checking running resources…':undefined} error={error}
+  details={checked&&unconfirmed?<OwnershipPanel target={{sessionId:session.id}} what="Deleting this conversation waits" onSettled={()=>{setSettled(true);refresh();}}/>:undefined}
+  warning={live?'This conversation has an active session or command.':undefined}
+  check={live?{label:'Stop its agent and running commands before deleting',checked:stop,onChange:setStop,required:true}:undefined}
+  canConfirm={checked&&!unconfirmed} confirm={live?'Stop and delete':'Delete conversation'} working="Deleting…" onClose={onClose}
+  onConfirm={async()=>{await api.deleteConversation({sessionId:session.id,stopSessions:stop},{timeoutMs:120000});forgetConversation(api,session.id);conversationOpeners()?.forget(session.id);refresh();onDeleted();}}>
+  Its messages and uploads will be removed from Lazybox.
+ </ConfirmDialog>;
 }

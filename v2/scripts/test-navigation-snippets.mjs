@@ -1,13 +1,14 @@
+import {testViteCache} from './fixtures/vite-cache.mjs';
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
-import { webkit, expect } from "@playwright/test";
+import { webkit, expect } from "./fixtures/playwright.mjs";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { startRunnerFixture } from "./fixtures/runner-ui.mjs";
 const f = await startRunnerFixture();
 Object.assign(f.library[0], {
   name: "handbook",
-  gitIdentity: "github:obin-ai/handbook",
+  gitIdentity: "github:acme/handbook",
 });
 Object.assign(f.sessions[0], {
   title: "what is this repo?",
@@ -16,7 +17,7 @@ Object.assign(f.sessions[0], {
   modelReported: true,
   status: "done",
 });
-const server = await createServer({
+const server = await createServer({...testViteCache(import.meta.url),
   configFile: false,
   root: fileURLToPath(new URL("../apps/web", import.meta.url)),
   plugins: [react()],
@@ -41,9 +42,12 @@ try {
   );
   const rows = page.locator(".workspace-row"),
     alpha = rows.filter({ hasText: "Alpha feature" });
-  await expect(alpha).toContainText("claude-fable-5-1");
+  // A row says what the conversation is doing and where (its task and branch), not which model runs it.
+  await expect(alpha).toContainText("what is this repo?");
+  await expect(alpha).toContainText("lazybox/alpha/api");
+  await expect(alpha).not.toContainText("claude-fable-5-1");
   await expect(page.locator(".workspace-conversations")).toHaveCount(0);
-  await expect(alpha).toContainText("obin-ai/handbook");
+  await expect(alpha).toContainText("acme/handbook");
   await expect(
     alpha.getByRole("button", { name: "New conversation", exact: true }),
   ).toHaveCount(0);
@@ -52,7 +56,8 @@ try {
     .getByRole("button", { name: "New workspace", exact: true })
     .click();
   let dialog = page.getByRole("dialog", { name: "New workspace", exact: true });
-  await expect(dialog.getByRole("searchbox")).toBeFocused();
+  // Creating starts on the name, its suggestion selected so typing replaces it.
+  await expect(dialog.getByLabel("Workspace name", { exact: true })).toBeFocused();
   await page.screenshot({ path: "/tmp/lazybox-navigation-workspace.png" });
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   const message = page.getByRole("textbox", { name: "Message", exact: true });
@@ -116,6 +121,27 @@ try {
   await expect(alpha.locator(".workspace-link")).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(rows.nth(1).locator(".workspace-link")).toBeFocused();
+  // The leader menu is configurable: add an entry, see it in the which-key card, use it.
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("tab", { name: "Shortcuts" }).click();
+  await page.getByRole("button", { name: "Add entry", exact: true }).click();
+  // `r` is the built-in "Run the last command block" (] ] r): an entry takes a free key.
+  await page.getByLabel("Key for entry 1").fill("x");
+  await page.getByLabel("Snippet for entry 1").selectOption("review");
+  await page.getByLabel("Action for entry 1").selectOption("insert");
+  await page.getByRole("button", { name: "Save menu", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Menu saved." })).toBeVisible();
+  await page.getByRole("navigation", { name: "Pages" }).getByRole("button").first().click();
+  await message.fill("");
+  await message.focus();
+  await message.press("Control+b");
+  const menu = page.getByRole("status", { name: "Keyboard menu" });
+  await expect(menu).toContainText("Ctrl+b");
+  await expect(menu.locator("li").filter({ hasText: "Review this change" })).toContainText("x");
+  await expect(menu.locator("li").filter({ hasText: "Snippets" })).toContainText("s");
+  await page.keyboard.press("x");
+  await expect(menu).toHaveCount(0);
+  await expect(message).toHaveValue("Review the current change carefully.");
   f.sessions.push({
     ...f.sessions[0],
     id: "alpha-second",
@@ -124,10 +150,16 @@ try {
     title: "Second conversation",
   });
   await page.getByRole("button", { name: "Refresh workspaces" }).click();
-  await expect(alpha).toContainText("2 conversations");
+  // Several conversations are listed under the card, one line each; folded,
+  // the row names the one it shows and counts the rest ("+1"), the full count its tooltip.
   await expect(
     page.locator(".workspace-conversations .conversation-row"),
   ).toHaveCount(2);
+  await expect(alpha.locator(".workspace-agent")).toHaveCount(0);
+  await alpha.getByRole("button", { name: /^Fold the 2 conversations/ }).click();
+  await expect(alpha.locator(".workspace-agent-more")).toHaveText("+1");
+  await expect(alpha.locator(".workspace-agent-more")).toHaveAttribute("title", "2 conversations");
+  await expect(page.locator(".workspace-conversations")).toHaveCount(0);
   await page.screenshot({ path: "/tmp/lazybox-navigation-multiple.png" });
   assert.deepEqual(errors, []);
   console.log(

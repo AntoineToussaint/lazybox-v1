@@ -22,21 +22,36 @@ type Profile struct {
 	EnvRefs   map[string]string `json:"envRefs,omitempty"`
 	Home      string            `json:"home,omitempty"`
 	Isolation string            `json:"isolation"`
-	// OAuth token created once by Claude setup-token; never returned on the wire.
+	// A Claude setup-token an earlier Lazybox imported; never returned on the
+	// wire. No new ones are imported (ErrClaudeTokenImport).
 	TokenFile string `json:"tokenFile,omitempty"`
 	// A native claude.ai login stored in this managed profile's private directory.
 	NativeLogin bool `json:"nativeLogin,omitempty"`
 }
 
+// Login is a provider sign-in waiting for the person. A browser sign-in has
+// a URL to open and no Code; a device sign-in has a verification URL and the
+// one-time Code to enter there.
 type Login struct{ ID, URL, Code string }
 
+// How a person signs in to a provider account.
+const (
+	// BrowserSignIn opens the provider's page in a browser on the Runner's
+	// computer; the provider's CLI receives the callback on loopback.
+	BrowserSignIn = "browser"
+	// DeviceSignIn shows a one-time code to enter on any device.
+	DeviceSignIn = "device"
+)
+
 type Options struct {
-	Instructions     string         `json:"instructions,omitempty"`
-	RotationProfiles []string       `json:"rotationProfiles,omitempty"`
-	Workflow         string         `json:"workflow,omitempty"`
-	Model            string         `json:"model,omitempty"`
-	Permission       string         `json:"permission,omitempty"`
-	Gateway          *agent.Gateway `json:"gateway,omitempty"`
+	Instructions     string   `json:"instructions,omitempty"`
+	RotationProfiles []string `json:"rotationProfiles,omitempty"`
+	// NoRotation keeps the conversation on its selected subscription.
+	NoRotation bool           `json:"noRotation,omitempty"`
+	Workflow   string         `json:"workflow,omitempty"`
+	Model      string         `json:"model,omitempty"`
+	Permission string         `json:"permission,omitempty"`
+	Gateway    *agent.Gateway `json:"gateway,omitempty"`
 }
 
 func (o Options) Validate() error {
@@ -46,7 +61,7 @@ func (o Options) Validate() error {
 	if o.Permission == "yolo" && o.Workflow == "plan" {
 		return errors.New("YOLO is incompatible with plan mode")
 	}
-	if len(o.RotationProfiles) > 16 {
+	if len(o.RotationProfiles) > MaxRotationProfiles {
 		return errors.New("at most 16 rotation profiles")
 	}
 	seen := map[string]bool{}
@@ -73,9 +88,45 @@ func (o Options) Validate() error {
 	return nil
 }
 
+// MaxRotationProfiles bounds a rotation pool (see Options.Validate).
+const MaxRotationProfiles = 16
+
+// DefaultRotationPool is the pool a conversation rotates through when nobody
+// chose one: every other signed-in (isolated, enrolled) subscription of the
+// selected profile's provider, minus the ones excluded from automatic
+// switching. IDs are sorted so the cap keeps the same profiles every time.
+func DefaultRotationPool(profiles []Profile, selected Profile, excluded []string) []string {
+	skip := map[string]bool{selected.ID: true}
+	for _, id := range excluded {
+		skip[id] = true
+	}
+	pool := []string{}
+	for _, p := range profiles {
+		if p.Provider == selected.Provider && p.Isolation == "environment" && !skip[p.ID] {
+			skip[p.ID] = true
+			pool = append(pool, p.ID)
+		}
+	}
+	sort.Strings(pool)
+	if len(pool) > MaxRotationProfiles {
+		pool = pool[:MaxRotationProfiles]
+	}
+	return pool
+}
+
+// ACPProvider reports whether provider names an ACP agent ("acp:<id>",
+// adapters/acp). An ACP agent runs on its own sign-in: its profile inherits
+// the Runner's environment and carries no credentials of its own.
+func ACPProvider(provider string) bool {
+	return strings.HasPrefix(provider, "acp:") && len(provider) > len("acp:")
+}
+
 func Resolve(p Profile, inherited []string) ([]string, error) {
-	if p.ID == "" || (p.Provider != "codex" && p.Provider != "claude") {
+	if p.ID == "" || (p.Provider != "codex" && p.Provider != "claude" && !ACPProvider(p.Provider)) {
 		return nil, errors.New("invalid profile identity/provider")
+	}
+	if ACPProvider(p.Provider) && (p.Isolation == "environment" || p.Home != "" || p.TokenFile != "" || len(p.EnvRefs) > 0) {
+		return nil, errors.New("an ACP agent runs on its own sign-in; its profile holds no credentials")
 	}
 	env := map[string]string{}
 	for _, entry := range inherited {
@@ -121,6 +172,10 @@ func Resolve(p Profile, inherited []string) ([]string, error) {
 		}
 	}
 	if p.TokenFile != "" {
+		// An account an earlier Lazybox imported from a Claude subscription
+		// token. No new ones are imported (ErrClaudeTokenImport); an existing
+		// one keeps working while Claude sign-in in Lazybox is on (the Runner
+		// checks that), and Settings offers to remove it.
 		if p.Provider != "claude" || !filepath.IsAbs(p.TokenFile) {
 			return nil, errors.New("OAuth token file requires Claude and an absolute path")
 		}

@@ -76,6 +76,9 @@ type API interface {
 	Repositories(context.Context, string, int64, int) ([]Repository, bool, error)
 	UserRepositories(context.Context, string, int) ([]Repository, bool, error)
 	Repository(context.Context, string, int64) (Repository, error)
+	// RepositoryNamed is the repository GitHub has under owner/name now,
+	// which may be another repository than the one that had the name before.
+	RepositoryNamed(context.Context, string, string) (Repository, error)
 	Items(context.Context, string, string, int) ([]Item, bool, error)
 }
 type Client struct {
@@ -85,6 +88,14 @@ type Client struct {
 
 func New() *Client {
 	return &Client{http: &http.Client{Timeout: 20 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("GitHub redirects are not followed") }}, apiURL: "https://api.github.com", loginURL: "https://github.com"}
+}
+
+// NewAt is a client for the REST API at apiURL, such as a test server. Its
+// device sign-in still goes to github.com.
+func NewAt(apiURL string) *Client {
+	c := New()
+	c.apiURL = apiURL
+	return c
 }
 func (c *Client) request(ctx context.Context, method, target, token string, form url.Values, out any) error {
 	var body io.Reader
@@ -176,6 +187,14 @@ func (t boundedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	response.Body = io.NopCloser(bytes.NewReader(data))
 	return response, nil
 }
+
+// HTTPError is a GitHub answer with a status no other error names (a 404
+// among them: for a private repository, also what a connection that cannot
+// see it gets).
+type HTTPError struct{ Status int }
+
+func (e *HTTPError) Error() string { return fmt.Sprintf("GitHub request failed (HTTP %d)", e.Status) }
+
 func apiError(err error, response *sdk.Response) error {
 	if err == nil {
 		return nil
@@ -193,7 +212,7 @@ func apiError(err error, response *sdk.Response) error {
 		case 403, 429:
 			return ErrForbidden
 		default:
-			return fmt.Errorf("GitHub request failed (HTTP %d)", response.StatusCode)
+			return &HTTPError{Status: response.StatusCode}
 		}
 	}
 	return errors.New("GitHub request failed; check the connection and try again")
@@ -293,6 +312,21 @@ func (c *Client) Repository(ctx context.Context, token string, id int64) (Reposi
 		return Repository{}, errors.New("could not initialize GitHub client")
 	}
 	repo, response, err := client.Repositories.GetByID(ctx, id)
+	if err != nil {
+		return Repository{}, apiError(err, response)
+	}
+	return mapRepository(repo), nil
+}
+func (c *Client) RepositoryNamed(ctx context.Context, token, fullName string) (Repository, error) {
+	owner, name, ok := strings.Cut(fullName, "/")
+	if !ok || owner == "" || name == "" || strings.Contains(name, "/") {
+		return Repository{}, errors.New("repository owner/name required")
+	}
+	client, err := c.apiClient(token)
+	if err != nil {
+		return Repository{}, errors.New("could not initialize GitHub client")
+	}
+	repo, response, err := client.Repositories.Get(ctx, owner, name)
 	if err != nil {
 		return Repository{}, apiError(err, response)
 	}

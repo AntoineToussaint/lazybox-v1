@@ -7,6 +7,7 @@ import {
   repositoryOrganization,
 } from "./repository-model";
 import { GitHubSettings } from "./GitHubSettings";
+import { ReplaceRepositoryCopy } from "./RepositoryReplacement";
 import "./repository-browser.css";
 export const RepositoryHostContext = createContext<
   Pick<
@@ -17,28 +18,36 @@ export const RepositoryHostContext = createContext<
 type Props = {
   selected?: ReadonlySet<string>;
   onSelected?(value: Set<string>): void;
+  /** Double-click: choose this repository and finish (create or add) at once. */
+  onActivate?(identity: string): void;
   included?: ReadonlySet<string>;
   disabled?: boolean;
   chooseRepositoryFolder?(): Promise<string | null>;
+  /** The search it opens with. */
+  initialQuery?: string;
 };
 /** Shared identity browser: selecting is presentation state, never a clone/import. */
 export function RepositoryBrowser({
   selected = new Set(),
   onSelected,
+  onActivate,
   included = new Set(),
   disabled = false,
   chooseRepositoryFolder,
+  initialQuery = "",
 }: Props) {
   const { api } = useRunner(),
     host = useContext(RepositoryHostContext);
   const { catalog, loading, refreshing, error, reload } =
     useRepositoryCatalog(api);
-  const [query, setQuery] = useState(""),
+  const [query, setQuery] = useState(initialQuery),
     [sources, setSources] = useState(false),
     [localPath, setLocalPath] = useState(""),
     [busy, setBusy] = useState(false),
     [sourceError, setSourceError] = useState(""),
-    [removing, setRemoving] = useState<string>();
+    [removing, setRemoving] = useState<string>(),
+    [replacing, setReplacing] = useState<string>(),
+    [replacedNote, setReplacedNote] = useState("");
   const entries = [...(catalog?.entries || [])].sort(compareRepositories),
     visible = entries.filter((r) =>
       r.name.toLowerCase().includes(query.trim().toLowerCase()),
@@ -130,6 +139,9 @@ export function RepositoryBrowser({
           {error || sourceError}
         </p>
       )}
+      {replacedNote && (
+        <p className="repository-catalog-notice" role="status">{replacedNote}</p>
+      )}
       {refreshing && (
         <p className="repository-catalog-notice" role="status">
           Refreshing GitHub repositories… Saved results remain available.
@@ -174,9 +186,14 @@ export function RepositoryBrowser({
               <div className="repository-browser-row">
                 {onSelected ? (
                   <label
-                    onDoubleClick={() => {
-                      if (!disabled && !included.has(repo.repositoryId))
-                        onSelected(new Set([...selected, repo.identity]));
+                    title={onActivate && !included.has(repo.repositoryId) ? "Double-click to choose this repository and continue" : undefined}
+                    onClick={(event) => {
+                      // The second click of a double-click: keep the repository
+                      // chosen (no toggle back) and, if offered, finish at once.
+                      if (event.detail !== 2 || disabled || included.has(repo.repositoryId)) return;
+                      event.preventDefault();
+                      if (onActivate) onActivate(repo.identity);
+                      else onSelected(new Set([...selected, repo.identity]));
                     }}
                   >
                     <input
@@ -202,6 +219,19 @@ export function RepositoryBrowser({
                 ) : (
                   <>
                     <span title={repo.name}>{repo.name.includes("/")?repo.name.slice(repo.name.indexOf("/")+1):repo.name}</span>
+                    {repo.repositoryId && repo.identity.startsWith("github:") && (
+                      // A history GitHub replaced (a force-push with a new root,
+                      // or a new repository under the name): a fresh copy.
+                      <button
+                        type="button"
+                        aria-label={`Replace Lazybox’s copy of ${repo.name}`}
+                        aria-expanded={replacing === repo.identity}
+                        title="Copy it again from GitHub, for example after its history was force-pushed"
+                        onClick={() => setReplacing(replacing === repo.identity ? undefined : repo.identity)}
+                      >
+                        Replace copy…
+                      </button>
+                    )}
                     <button
                       type="button"
                       aria-label={`Remove ${repo.name} from suggestions`}
@@ -212,6 +242,22 @@ export function RepositoryBrowser({
                   </>
                 )}
               </div>
+              {replacing === repo.identity && (
+                <div className="repository-browser-replace">
+                  <p>Replace Lazybox’s copy of {repo.name} with the repository as GitHub has it now. Do this when its history was replaced on GitHub (a force-push with a new root, or a new repository under the same name).</p>
+                  <ReplaceRepositoryCopy
+                    replacement={{ identity: repo.identity, name: repo.name, hasCopy: true }}
+                    lead={false}
+                    autoFocus
+                    onCancel={() => setReplacing(undefined)}
+                    onReplaced={(done) => {
+                      setReplacing(undefined);
+                      setReplacedNote(`Replaced Lazybox’s copy of ${done.name || repo.name}. New workspaces start from it.`);
+                      void reload();
+                    }}
+                  />
+                </div>
+              )}
             </Fragment>
           ))
         )}
@@ -275,13 +321,16 @@ export function RepositoryBrowser({
           </button>
         </div>
       )}
-      {onSelected && !!selected.size && (
+      {/* Always present, so choosing the first repository does not shift the
+          list under the pointer (a double-click would land on another row). */}
+      {onSelected && (
         <div
           className="repository-selection"
           role="region"
           aria-label="Selected repositories"
           tabIndex={0}
         >
+          {!selected.size && <span className="repository-selection-empty">No repository selected yet · double-click one to choose it and continue</span>}
           {[...selected].map((id) => (
             <button
               type="button"

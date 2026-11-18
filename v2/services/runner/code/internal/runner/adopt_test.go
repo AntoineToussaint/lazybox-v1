@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,12 +32,28 @@ func TestMain(m *testing.M) {
 		fixtureRunner()
 		return
 	}
+	if os.Getenv("RUNNER_FIXTURE") == "reboot" {
+		fixtureRebootRunner()
+		return
+	}
 	os.Exit(m.Run())
 }
 
 // fixtureWorker raises one approval per turn and finishes the turn once it is
 // answered, naming its own PID so a test can tell which process finished it.
+// With FIXTURE_WORKER_LOG set it also notes each open (with the session it
+// was asked to resume) and each message it was given.
 func fixtureWorker() {
+	note := func(string) {}
+	if path := os.Getenv("FIXTURE_WORKER_LOG"); path != "" {
+		note = func(line string) {
+			f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+			if err == nil {
+				fmt.Fprintln(f, line)
+				f.Close()
+			}
+		}
+	}
 	out := bufio.NewWriter(os.Stdout)
 	send := func(v any) { data, _ := json.Marshal(v); fmt.Fprintf(out, "%s\n", data); out.Flush() }
 	event := func(v map[string]any) {
@@ -53,6 +70,8 @@ func fixtureWorker() {
 			Params struct {
 				RequestID string `json:"requestId"`
 				Decision  string `json:"decision"`
+				Resume    string `json:"resume"`
+				Text      string `json:"text"`
 			} `json:"params"`
 		}
 		if json.Unmarshal(s.Bytes(), &r) != nil {
@@ -60,11 +79,17 @@ func fixtureWorker() {
 		}
 		switch r.Method {
 		case "open":
+			note("open resume=" + r.Params.Resume + " pid=" + pid)
 			send(map[string]any{"id": r.ID, "result": map[string]string{"reference": "fixture-ref"}})
 			event(map[string]any{"type": "session_ready", "text": pid})
 		case "message":
+			note("message " + r.Params.Text)
 			send(map[string]any{"id": r.ID, "result": map[string]string{"delivery": "submitted"}})
 			event(map[string]any{"type": "turn_started"})
+			if r.Params.Text == "report context" {
+				// What the Runner meters: a write to its telemetry database.
+				event(map[string]any{"type": "context", "data": map[string]any{"model": "fixture", "used": 1000, "capacity": 200000}})
+			}
 			event(map[string]any{"type": "approval", "requestId": "req-1", "text": "Bash"})
 		case "approve":
 			if r.Params.RequestID != "req-1" {
@@ -370,6 +395,57 @@ func TestRunnerThatDoesNotAdoptStopsAPredecessorsAgents(t *testing.T) {
 	}
 	pid := orphan.AgentPID()
 	_ = orphan.Detach()
+	b := fixtureBench(t, state)
+	defer b.Close()
+	if err = b.StopUnclaimedHosts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	stoppedEventually(t, pid)
+}
+
+// A host that still counts a predecessor's connection as attached (it has not
+// read that connection's close yet) is not claimed by this Runner, so the sweep
+// stops it. The predecessor's connection is held open here so the host's view
+// stays stale for the whole sweep, as it may after a crash under load.
+func TestSweepStopsAHostThatStillShowsAPredecessorAttached(t *testing.T) {
+	state := t.TempDir()
+	cleanupHosts(t, state)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	root := filepath.Join(state, "hosts")
+	orphan, err := sessionhost.Launch(ctx, root, sessionhost.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = orphan.Spawn(ctx, sessionhost.Spec{Path: "/bin/sleep", Args: []string{"300"}, Cwd: state}); err != nil {
+		t.Fatal(err)
+	}
+	pid, id := orphan.AgentPID(), orphan.ID()
+	record, err := sessionhost.ReadRecord(filepath.Join(root, id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	predecessor, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(record.Port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer predecessor.Close()
+	if err = json.NewEncoder(predecessor).Encode(map[string]any{"op": "hello", "token": record.Token, "protocol": record.Protocol, "ack": 0}); err != nil {
+		t.Fatal(err)
+	}
+	_ = orphan.Detach()
+	for end := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		status, err := sessionhost.Probe(ctx, root, id)
+		if err == nil && status.Attached {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatalf("the predecessor's connection never attached: %+v %v", status, err)
+		}
+	}
+	if sessionhost.Held(root, id) {
+		t.Fatal("this process still counts a host it detached from")
+	}
 	b := fixtureBench(t, state)
 	defer b.Close()
 	if err = b.StopUnclaimedHosts(ctx); err != nil {

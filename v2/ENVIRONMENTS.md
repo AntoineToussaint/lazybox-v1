@@ -3,6 +3,14 @@
 Use separate native apps and separate Runners when dogfooding. A working build
 must not execute from the source tree currently being edited.
 
+This page is about developing Lazybox. The **installed release** people use
+(a disk image or Homebrew cask, its Runner a launchd service, updates from a
+signed feed) is a third, separate installation: see [INSTALL.md](INSTALL.md)
+and [RELEASING.md](RELEASING.md). It has its own app identity
+(`ai.lazybox.app`), state (`~/Library/Application Support/Lazybox`) and
+launchd job (`ai.lazybox.runner`), runs its Runner without Codefly
+(`lazybox-runner serve`), and never touches Dev or Working.
+
 From the repository root on macOS:
 
 ```sh
@@ -19,7 +27,12 @@ in the launcher stops that Runner and its development watchers.
 Dev reloads automatically: Vite/React refreshes UI edits inside Tauri; `tauri dev`
 rebuilds and relaunches the native shell when Rust changes; Codefly's go-grpc
 `hot-reload` watcher rebuilds and restarts the Runner when Go sources change.
-The desktop rereads its selected private endpoint file and adopts the new bearer
+The launcher rebuilds the `lazybox` CLI agents run (`<dev>/bin/lazybox`) from
+the same change: it polls `services/runner/code` (Go files other than tests,
+`go.mod`, `go.sum`), waits for edits to settle, builds beside the binary and
+renames it over, so an agent never runs a half-written CLI nor one older than
+its Runner. A failed build keeps the previous CLI and says so; it never stops
+Dev. The desktop rereads its selected private endpoint file and adopts the new bearer
 on the same resolved origin. No credential is put in the Vite URL or public assets.
 Vite binds a loopback port assigned by the OS and serves only UI source/dependencies.
 UI watchers share the explicit macOS compatibility policy in
@@ -32,6 +45,28 @@ A backend reload does not stop Dev agents. Each runs in a [session host](SESSION
 that outlives the Runner, and the reloaded Runner re-attaches to it. Managed
 commands an agent started keep running the same way. History and managed subscriptions remain in
 persistent storage. Changing the launcher or dependencies still needs a relaunch.
+
+### Restart the Runner from the app
+
+Settings → **Runner** (also reached by clicking the Runner status in the
+workspace header) offers **Restart Runner** for a Dev or Working Runner started
+by `make -C v2 dev` or `make -C v2 working`. After a confirmation, the Runner
+records a restart request in `<environment>/restart-request.json`
+(`LAZYBOX_V2_RESTART_REQUEST`, set by `scripts/runner-command.mjs` only for this
+launcher) and stops through its ordinary shutdown, detaching agents, managed
+commands and terminals exactly as any restart does. The launcher sees the exit,
+finds the request, and runs Codefly again; the desktop and the Dev watchers keep
+running, and the ownership lock stays held. Any other Runner exit still stops
+the environment. A restarted Runner that does not become ready stops it too,
+as a first launch would.
+
+The new Runner usually gets a different port. The app follows it without
+reloading: Restart Runner arms the desktop to adopt the next Runner its private
+locator names (same Runner identity, loopback origin only), so drafts and
+selection stay as they were. The workspace shows *Restarting…* rather than a
+disconnection, then *Runner restarted*, or the reason a restart was refused.
+`RestartRunner` is the owner's alone: an agent's scoped credential is denied,
+and terminals hold no Runner credential.
 
 Known Codefly limitation (CLI v0.1.212 / go-grpc v0.1.69): a Go edit that
 does not compile exits the launcher instead of waiting for the corrected edit.
@@ -129,8 +164,16 @@ Runner Info before opening the app. A process marked healthy by a supervisor
 without a product probe is not evidence that the Runner is ready. During startup,
 retry client attachment after Codefly finishes building/starting the service.
 
+Restart Runner in the app is unavailable for the service, which nothing would
+start again (`--restart never`); Settings → Runner says so. Restart it with
+`make -C v2 runner-service-stop` and then `make -C v2 runner-service-start`;
+agents keep running across that restart too.
+
 Automatic restart and login start are disabled in this slice. They must not hide
-the outstanding agent resource-ownership/crash-cleanup gate. This provides
+the outstanding agent resource-ownership/crash-cleanup gate. (The installed
+release's own launchd job, [INSTALL.md](INSTALL.md), does start at login and
+keeps its Runner alive: agents outlive the Runner in session hosts, and a
+restarted Runner adopts them.) This provides
 client-independent lifetime, not crash-safe agent recovery. The service still
 needs the installed Codefly/Go/Node/provider toolchain; it is not a standalone
 remote installer or a mobile connection mechanism.
@@ -225,19 +268,35 @@ writes are visible. An unreadable view file is retained and reported. Attachment
 bytes are not persisted as drafts: reattach missing files after reopening.
 
 The selected private locator is reread in both Dev and Working, and a different
-Runner identity is rejected. A changed loopback port requires explicit Retry;
-a renewed bearer at the same origin is adopted automatically. Native storage
-and restoration logic are tested; physical display restoration is still a
-manual validation gate.
+Runner identity is rejected. Every Runner start publishes a new bearer: a Codefly
+hot reload keeps the port, a launcher restart (Restart Runner, or any other) gets
+a new one. Both are followed automatically for a Runner that reports its
+identity, whether or not the restart was requested from this app: the host
+validates the loopback URL and grants only that RPC origin to the HTTP client
+first. A Runner without an identity on a new port still needs **Reconnect this
+window**. Native storage and restoration logic are tested; physical display
+restoration is still a manual validation gate.
 
+Each window rereads the locator every three seconds (every second while a
+restart it requested is under way), and at once when a request is refused as
+unauthenticated or cannot reach the Runner. A refused request is retried once
+against the Runner the locator names (it was rejected before anything ran); one
+that could not complete is not repeated, since it may have run. All of a window's clients, including open
+streams and cached conversation readers, send the current bearer, never an empty
+one; streams reconnect from their own cursor. A bearer the Runner keeps refusing
+shows as **Not authorized** in the header. The workspace list keeps the last list
+the Runner gave while it is unreachable and says it is reconnecting; a window
+that has not heard from the Runner yet says so instead of showing no workspaces.
 Dev polls Info with a bounded timeout every three seconds and retries automatically.
 The workspace displays one connection banner while the Runner is unavailable.
-**Retry now** in native Dev rereads the same private endpoint locator, validates
-its loopback URL, grants only that resolved RPC origin to the HTTP client, and
-reloads the window with its saved target. This handles a full launcher restart
-that allocated a different port. Normal hot reload adopts a new bearer at the
-same origin automatically. Requests that mutate agents are never replayed by
-connection retry.
+**Retry now** in native Dev rereads the same private endpoint locator and reloads
+the window with its saved target. Requests that mutate agents are never replayed
+by connection retry.
+
+Lazybox Dev (`ai.lazybox.v2.dev`) and Lazybox (Working, `ai.lazybox.v2.working`)
+are separate applications with separate Runners and separate workspace stores
+(`<environments>/dev/collections` and `<environments>/working/collections`): a
+workspace created in one is never listed by the other.
 
 Vite runs in middleware mode under a launcher-owned HTTP/HMR server. Standalone
 Vite's SIGTERM handler calls `process.exit()`, which previously cut off watcher

@@ -6,17 +6,18 @@ import {JournalEventSchema,SessionSchema} from '@lazybox/protocol';
 import {NativeStatus} from '../workers/claude-sdk/src/status.ts';
 import type {SDKMessage} from '@anthropic-ai/claude-agent-sdk';
 import {toolActivity} from '../packages/surfaces/src/tool-activity.ts';
-import {activityLabel} from '../packages/surfaces/src/activity.ts';
+import {phaseFromEvents,phaseLabel} from '../packages/surfaces/src/live-status.ts';
+const activityLabel=(events:ReturnType<typeof wire>[])=>{const step=phaseFromEvents(events);return step?phaseLabel(step.phase,step.tool):'';};
 import {fileReference} from '../packages/surfaces/src/file-reference.ts';
 const wire=(event:any,cursor=1)=>create(JournalEventSchema,{cursor:BigInt(cursor),event:{...event,providerDataJson:new TextEncoder().encode(JSON.stringify(event.data||{}))}});
 test('Claude protocol fixture replays requesting, real compaction, completion and results',async()=>{
  const raw=JSON.parse(await readFile(new URL('../tests/fixtures/providers/claude-activity.json',import.meta.url),'utf8'));
  const adapter=new NativeStatus();const events:ReturnType<typeof wire>[]=[];
- const session=create(SessionSchema,{busy:true,status:'running'});
+
  const labels=[];
- for(const m of raw){for(const ev of adapter.normalize(m as SDKMessage))events.push(wire(ev,events.length+1));labels.push(activityLabel(events,session));}
- assert.equal(labels[1],'Waiting for provider…');assert.equal(labels[2],'Working…');
- assert.equal(labels[5],'Compacting context…');assert.equal(labels[6],'Working…');assert.equal(labels[7],'Waiting for provider…');assert.equal(labels[8],'');
+ for(const m of raw){for(const ev of adapter.normalize(m as SDKMessage))events.push(wire(ev,events.length+1));labels.push(activityLabel(events));}
+ assert.equal(labels[1],'Waiting for the model');assert.equal(labels[2],'Working');
+ assert.equal(labels[5],'Compacting context');assert.equal(labels[6],'Working');assert.equal(labels[7],'Waiting for the model');assert.equal(labels[8],'');
  const activity=toolActivity(events);assert.deepEqual(activity.available,['Read','Bash']);assert.equal(activity.calls.length,1);assert.equal(activity.calls[0].status,'Completed');assert.equal(activity.calls[0].output,'# Fixture README');
 });
 test('Codex item lifecycle deduplicates updates, filters reasoning, preserves failure',()=>{
@@ -26,7 +27,7 @@ test('Codex item lifecycle deduplicates updates, filters reasoning, preserves fa
 test('missing tool results remain unknown and child activity cannot replace the root',()=>{
  const events=[wire({type:'tool_activity',data:{type:'tool_use',id:'t',name:'Read',input:{}}}),wire({type:'turn_ended'})];
  assert.equal(toolActivity(events).calls[0].status,'Result not reported');
- const root=[wire({type:'activity',status:'requesting'}),wire({type:'activity',status:'compacting',agentId:'child'})];assert.equal(activityLabel(root),'Waiting for provider…');
+ const root=[wire({type:'activity',status:'requesting'}),wire({type:'activity',status:'compacting',agentId:'child'})];assert.equal(activityLabel(root),'Waiting for the model');
 });
 test('automatic file links do not turn Git references into files',()=>{
  for(const value of ['origin/main','feature/rapidly-social-lemming'])assert.equal(fileReference(value,'automatic'),undefined);

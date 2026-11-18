@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -33,6 +34,11 @@ type Repository struct {
 	Name      string `json:"name,omitempty"`
 	SourceURL string `json:"sourceUrl,omitempty"`
 	GitHubID  int64  `json:"githubId,omitempty"`
+	// Home is the person's home checkout chosen in Settings (homes.go): a
+	// regular checkout outside every workspace that Lazybox never changes or
+	// deletes. Libraries written before it have none; a local repository's
+	// source folder then serves as its home (Manager.Home).
+	Home string `json:"home,omitempty"`
 }
 type MemberSpec struct {
 	Name         string `json:"name"`
@@ -44,6 +50,8 @@ type Spec struct {
 	Name    string       `json:"name"`
 	WorkID  string       `json:"workId,omitempty"`
 	Members []MemberSpec `json:"members"`
+	// The work item the workspace starts from (origin.go).
+	Origin *Origin `json:"origin,omitempty"`
 }
 type Member struct {
 	MemberSpec
@@ -70,6 +78,10 @@ type Collection struct {
 	AddRequests             map[string]string `json:"addRequests,omitempty"`
 	OwnershipUncertain      bool              `json:"-"`
 	LastOwnershipResolution string            `json:"lastOwnershipResolution,omitempty"`
+	// The work item it was started from, if any (origin.go).
+	Origin *Origin `json:"origin,omitempty"`
+	// When it was created, in Unix milliseconds; 0 for a workspace older than the field.
+	CreatedAt int64 `json:"createdAt,omitempty"`
 }
 
 var component = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$`)
@@ -89,6 +101,12 @@ type Manager struct {
 	// adopted holds owners whose live agents this Runner re-attached: their
 	// ownership is certain even though a previous Runner recorded it.
 	adopted map[string]bool
+	// files caches each workspace's file index for search and link resolution.
+	files indexCache
+	// order is the person's order of their workspaces (arrangement.go).
+	order []string
+	// starts is the branch each repository starts from, by identity (start_from.go).
+	starts map[string]Start
 }
 
 func New(root string, repositories []Repository) (*Manager, error) {
@@ -139,6 +157,7 @@ func New(root string, repositories []Repository) (*Manager, error) {
 				for i := range repositories {
 					if repositories[i].ID == r.ID {
 						repositories[i].Hidden = r.Hidden
+						repositories[i].Home = r.Home
 					}
 				}
 				continue
@@ -229,6 +248,8 @@ func New(root string, repositories []Repository) (*Manager, error) {
 		c.syncOwners()
 		keys[c.RequestKey], work[c.WorkID], m.items[c.ID] = true, true, c
 	}
+	m.loadArrangement()
+	m.loadStarts()
 	return m, nil
 }
 
@@ -260,9 +281,33 @@ func (m *Manager) repositories() []Repository {
 	}
 	return unique
 }
+
+// Branch is the workspace's branch, the one a repository added to it gets
+// (unless another worktree of that repository already holds it): the branch
+// every member shares, as when the person named it at creation, else the one
+// named after the workspace's folder.
+func (c Collection) Branch() string {
+	shared := ""
+	for i, m := range c.Members {
+		if i > 0 && m.Branch != shared {
+			shared = ""
+			break
+		}
+		shared = m.Branch
+	}
+	if shared != "" {
+		return shared
+	}
+	return "feature/" + filepath.Base(c.Root)
+}
+
 func clone(c Collection) Collection {
 	c.Members = append([]Member(nil), c.Members...)
 	c.OwnerExecutionIDs = append([]string(nil), c.OwnerExecutionIDs...)
+	if c.Origin != nil {
+		origin := *c.Origin
+		c.Origin = &origin
+	}
 	requests := map[string]string{}
 	for key, value := range c.AddRequests {
 		requests[key] = value
@@ -289,7 +334,7 @@ func (m *Manager) List() []Collection {
 			out = append(out, clone(c))
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	arrange(out, m.order)
 	return out
 }
 func (m *Manager) Get(id string) (Collection, error) {
@@ -320,7 +365,17 @@ func (m *Manager) Create(ctx context.Context, key string, spec Spec) (Collection
 			spec.Members[i].BaseRef = "HEAD"
 		}
 	}
-	data, _ := json.Marshal(spec)
+	if err := spec.Origin.validate(); err != nil {
+		return Collection{}, err
+	}
+	// A retry is the same request when it names the same item; the snapshot
+	// (its title, read again) may differ. Without an origin the fingerprint is
+	// what it always was.
+	identity := spec
+	if spec.Origin != nil {
+		identity.Origin = &Origin{Provider: spec.Origin.Provider, Key: spec.Origin.Key}
+	}
+	data, _ := json.Marshal(identity)
 	hash := sha256.Sum256(data)
 	fingerprint := hex.EncodeToString(hash[:])
 	for _, c := range m.items {
@@ -349,7 +404,14 @@ func (m *Manager) Create(ctx context.Context, key string, spec Spec) (Collection
 	if activeCount >= 128 || len(m.items) >= 16384 {
 		return Collection{}, errors.New("collection capacity exhausted")
 	}
-	c := Collection{Version: 4, ID: commands.ID(), Name: spec.Name, WorkID: spec.WorkID, State: "creating", RequestKey: key, Fingerprint: fingerprint}
+	c := Collection{Version: 4, ID: commands.ID(), Name: spec.Name, WorkID: spec.WorkID, State: "creating", RequestKey: key, Fingerprint: fingerprint, CreatedAt: time.Now().UnixMilli()}
+	if spec.Origin != nil {
+		origin := *spec.Origin
+		if origin.StartedAt.IsZero() {
+			origin.StartedAt = time.Now().UTC()
+		}
+		c.Origin = &origin
+	}
 	for attempt := 0; attempt < 32; attempt++ {
 		slug := petname.Generate(3, "-")
 		candidate := filepath.Join(m.root, slug)
@@ -465,7 +527,7 @@ func (m *Manager) planMembers(ctx context.Context, c Collection, specs []MemberS
 		}
 		names[strings.ToLower(s.Name)] = true
 		if s.Branch == "" {
-			s.Branch = "feature/" + filepath.Base(c.Root)
+			s.Branch = c.Branch()
 			if branches[m.common[r.ID]+"\x00"+s.Branch] {
 				s.Branch += "-" + s.Name
 			}
@@ -486,6 +548,11 @@ func (m *Manager) planMembers(ctx context.Context, c Collection, specs []MemberS
 		}
 		if exists {
 			return Collection{}, errors.New("branch already exists; choose a new collection branch")
+		}
+		// No explicit base: origin's default branch as last fetched (base.go),
+		// never the source copy's own stale branch or the checkout's current one.
+		if s.BaseRef == "HEAD" {
+			s.BaseRef = m.defaultBase(ctx, r.Path).Ref
 		}
 		commit, err := m.git(ctx, r.Path, "rev-parse", "--verify", "--end-of-options", s.BaseRef+"^{commit}")
 		if err != nil {
@@ -695,6 +762,57 @@ func (m *Manager) Reconcile(id, expectedOwner, reason string, processesStopped b
 	c.LastOwnershipResolution = expectedOwner + ": " + reason
 	c = clone(c)
 	c.OwnerExecutionIDs = c.OwnerExecutionIDs[1:]
+	m.settleLocked(&c)
+	if err := m.save(c); err != nil {
+		return Collection{}, err
+	}
+	return clone(c), nil
+}
+
+// UncertainOwners are the workspace's sessions a previous Runner recorded and
+// this one did not re-attach: nothing confirms their processes stopped.
+func (m *Manager) UncertainOwners(id string) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c, ok := m.items[id]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	if !c.OwnershipUncertain {
+		return nil, nil
+	}
+	var owners []string
+	for _, owner := range c.OwnerExecutionIDs {
+		if !m.adopted[owner] {
+			owners = append(owners, owner)
+		}
+	}
+	return owners, nil
+}
+
+// ResolveOwner settles one uncertain owner, in any order: the Runner checked
+// that its processes are gone, stopped them, or the person said they had
+// stopped (resolution says which). Unlike Reconcile it needs no particular
+// owner first; it still only resolves an owner that is uncertain.
+func (m *Manager) ResolveOwner(id, owner, resolution string) (Collection, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c, ok := m.items[id]
+	if !ok {
+		return Collection{}, os.ErrNotExist
+	}
+	if m.closed {
+		return Collection{}, errors.New("collection manager closed")
+	}
+	if strings.TrimSpace(resolution) == "" || len(resolution) > 1024 {
+		return Collection{}, errors.New("a resolution is required")
+	}
+	if !c.OwnershipUncertain || m.adopted[owner] || !slices.Contains(c.OwnerExecutionIDs, owner) {
+		return Collection{}, errors.New("that session's ownership is not unconfirmed")
+	}
+	c = clone(c)
+	c.LastOwnershipResolution = owner + ": " + resolution
+	c.OwnerExecutionIDs = slices.DeleteFunc(c.OwnerExecutionIDs, func(value string) bool { return value == owner })
 	m.settleLocked(&c)
 	if err := m.save(c); err != nil {
 		return Collection{}, err

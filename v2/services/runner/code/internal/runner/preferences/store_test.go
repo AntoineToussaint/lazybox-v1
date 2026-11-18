@@ -24,6 +24,7 @@ func TestSettingsPersistWithoutMutatingBaseAndRejectLostUpdates(t *testing.T) {
 	next.Permission = "yolo"
 	next.Naming = "generated"
 	next.ClaudeContext = "Claude instructions"
+	next.RotationExcluded = []string{"spare"}
 	if err = s.Save(next); err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +48,7 @@ func TestSettingsPersistWithoutMutatingBaseAndRejectLostUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reopened.Snapshot().Permission != "yolo" || reopened.Rates()["codex/custom-model"].Input != 1000 {
+	if reopened.Snapshot().Permission != "yolo" || len(reopened.Snapshot().RotationExcluded) != 1 || reopened.Rates()["codex/custom-model"].Input != 1000 {
 		t.Fatal("restart lost settings")
 	}
 	stat, err := os.Stat(path)
@@ -66,7 +67,7 @@ func TestInvalidSettingsAndFailedWriteDoNotChangeMemory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, change := range []func(*Data){func(d *Data) { d.Naming = "no" }, func(d *Data) { d.Permission = "bypass" }, func(d *Data) { d.Context = strings.Repeat("x", 65537) }} {
+	for _, change := range []func(*Data){func(d *Data) { d.Naming = "no" }, func(d *Data) { d.Permission = "bypass" }, func(d *Data) { d.Context = strings.Repeat("x", 65537) }, func(d *Data) { d.RotationExcluded = []string{""} }} {
 		d := s.Snapshot()
 		change(&d)
 		if s.Save(d) == nil {

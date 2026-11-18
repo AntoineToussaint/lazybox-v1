@@ -34,6 +34,9 @@ func (c *pipeClient) Publish(_ context.Context, r *connect.Request[pb.PublishReq
 	c.offset += uint64(len(r.Msg.Data))
 	return connect.NewResponse(&pb.CommandStatus{}), c.publishError
 }
+func (c *pipeClient) FollowPipe(context.Context, *connect.Request[pb.FollowPipeRequest]) (*connect.Response[pb.FollowPipeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("fake console"))
+}
 func (c *pipeClient) FinishPipe(_ context.Context, r *connect.Request[pb.FinishPipeRequest]) (*connect.Response[pb.CommandStatus], error) {
 	c.finished = r.Msg
 	return connect.NewResponse(&pb.CommandStatus{}), nil
@@ -50,7 +53,7 @@ func TestPublicationFailureNeverSwallowsAgentOutput(t *testing.T) {
 				c.publishError = errors.New("publication failed")
 			}
 			var output, stderr bytes.Buffer
-			err := publish(context.Background(), c, "execution", "console", strings.NewReader(text), &output, &stderr)
+			err := publish(context.Background(), c, pipeTarget{session: "execution"}, "console", "", strings.NewReader(text), &output, &stderr)
 			if output.String() != text {
 				t.Fatal("agent output was swallowed")
 			}
@@ -69,7 +72,7 @@ type shortWriter struct{}
 func (shortWriter) Write(p []byte) (int, error) { return 0, nil }
 func TestFailedAgentWriteStillClosesCapture(t *testing.T) {
 	c := &pipeClient{}
-	err := publish(context.Background(), c, "execution", "console", strings.NewReader("output"), shortWriter{}, io.Discard)
+	err := publish(context.Background(), c, pipeTarget{session: "execution"}, "console", "", strings.NewReader("output"), shortWriter{}, io.Discard)
 	if !errors.Is(err, io.ErrShortWrite) || c.finished == nil || c.finished.CaptureError == "" {
 		t.Fatalf("%v %+v", err, c.finished)
 	}

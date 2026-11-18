@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,10 @@ type fakeNativeAccount struct {
 	authorize  chan struct{}
 	closed     atomic.Bool
 	loginError error
+	// startError fails Login itself (Codex could not start its sign-in).
+	startError error
+	method     atomic.Value
+	cancelled  atomic.Value
 }
 
 func TestAccountWireIncludesProviderEmail(t *testing.T) {
@@ -33,8 +38,19 @@ func TestAccountWireIncludesProviderEmail(t *testing.T) {
 	}
 }
 
-func (f *fakeNativeAccount) Login(context.Context) (codex.Login, error) {
-	return codex.Login{ID: "native-login", URL: "https://auth.openai.com/codex/device", Code: "FIXTURE-CODE"}, nil
+func (f *fakeNativeAccount) Login(_ context.Context, method string) (codex.Login, error) {
+	f.method.Store(method)
+	if f.startError != nil {
+		return codex.Login{}, f.startError
+	}
+	if method == accounts.DeviceSignIn {
+		return codex.Login{ID: "native-login", URL: "https://auth.openai.com/codex/device", Code: "FIXTURE-CODE"}, nil
+	}
+	return codex.Login{ID: "native-login", URL: "https://auth.openai.com/oauth/authorize?state=fixture"}, nil
+}
+func (f *fakeNativeAccount) CancelLogin(_ context.Context, id string) error {
+	f.cancelled.Store(id)
+	return nil
 }
 func (f *fakeNativeAccount) WaitLogin(ctx context.Context, _ string) error {
 	select {
@@ -75,7 +91,7 @@ func TestSettingsCodexSignInRegistersLiveAndRetainsUsageWithoutStartingAgent(t *
 		return native, nil
 	}
 	request := func() *pb.AddSubscriptionRequest {
-		return &pb.AddSubscriptionRequest{RequestKey: "stable-request", Provider: "codex", Label: "Work"}
+		return &pb.AddSubscriptionRequest{RequestKey: "stable-request", Provider: "codex", Label: "Work", SignInMethod: "device"}
 	}
 	first, err := s.AddSubscription(context.Background(), request())
 	if err != nil {
@@ -128,7 +144,7 @@ func TestSettingsCodexSignInRegistersLiveAndRetainsUsageWithoutStartingAgent(t *
 	if strings.Contains(string(metadata), "FIXTURE-CODE") || strings.Contains(string(metadata), "auth.openai.com") {
 		t.Fatal("one-time auth state persisted in account metadata")
 	}
-	if _, err = s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "stable-request", Provider: "codex", Label: "changed"}); err == nil {
+	if _, err = s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "stable-request", Provider: "codex", Label: "changed", SignInMethod: "device"}); err == nil {
 		t.Fatal("request identity reused")
 	}
 	refreshed, err := s.RefreshSubscription(context.Background(), &pb.RefreshSubscriptionRequest{ProfileId: first.ProfileId})
@@ -136,41 +152,21 @@ func TestSettingsCodexSignInRegistersLiveAndRetainsUsageWithoutStartingAgent(t *
 		t.Fatal(refreshed, err)
 	}
 }
-func TestSettingsClaudeTokenIsPrivateAndNotSavedInViewMetadata(t *testing.T) {
+
+// Lazybox does not store Claude.ai credentials (CLAUDE_COMPLIANCE.md): a
+// subscription token sent from Settings is refused, wiped from the request,
+// and nothing is registered.
+func TestSettingsRefusesAClaudeSubscriptionToken(t *testing.T) {
 	s, a := collectionService(t)
 	request := &pb.AddSubscriptionRequest{RequestKey: "claude-personal", Provider: "claude", Label: "Personal", SubscriptionToken: "fixture-private-subscription"}
-	flow, err := s.AddSubscription(context.Background(), request)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := s.AddSubscription(context.Background(), request); err == nil || !strings.Contains(err.Error(), "does not store Claude subscription tokens") {
+		t.Fatalf("token imported: %v", err)
 	}
 	if request.SubscriptionToken != "" {
 		t.Fatal("secret retained on RPC request object")
 	}
-	enrollmentState(t, s, flow.Id, "added")
-	info, err := s.Info(context.Background(), &pb.InfoRequest{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, _ := json.Marshal(info)
-	if strings.Contains(string(encoded), "fixture-private-subscription") {
-		t.Fatal("token leaked into Info")
-	}
-	profiles, err := accounts.LoadProfiles(s.Bench.Config.State)
-	if err != nil || len(profiles) != 1 {
+	if profiles, err := accounts.LoadProfiles(s.Bench.Config.State); err != nil || len(profiles) != 0 || a.Session != nil {
 		t.Fatal(profiles, err)
-	}
-	mode, err := os.Stat(profiles[0].TokenFile)
-	if err != nil || mode.Mode().Perm() != 0600 {
-		t.Fatal("private token mode", err)
-	}
-	if profiles[0].Label != "Personal" || a.Session != nil {
-		t.Fatal("wrong label or implicit inference")
-	}
-	s.Bench.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) {
-		return &fakeNativeAccount{}, nil
-	}
-	if _, err = s.RefreshSubscription(context.Background(), &pb.RefreshSubscriptionRequest{ProfileId: flow.ProfileId}); err != nil {
-		t.Fatal(err)
 	}
 }
 func TestSettingsCancellationDoesNotRegisterOrChangeCurrentAccounts(t *testing.T) {
@@ -189,6 +185,10 @@ func TestSettingsCancellationDoesNotRegisterOrChangeCurrentAccounts(t *testing.T
 	if len(s.Bench.Profiles()) != 2 {
 		t.Fatal("cancelled subscription registered")
 	}
+	// Codex's own sign-in is stopped too (account/login/cancel), freeing its callback port.
+	if native.cancelled.Load() != "native-login" {
+		t.Fatal("the provider's sign-in was not cancelled")
+	}
 	deadline := time.Now().Add(time.Second)
 	for !native.closed.Load() {
 		if time.Now().After(deadline) {
@@ -204,8 +204,13 @@ func TestEnrollmentReceiptRecoversAfterRunnerRestartWithoutTokenReplay(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
+	authorized := make(chan struct{})
+	close(authorized)
+	bench.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) {
+		return &fakeNativeAccount{authorize: authorized}, nil
+	}
 	service := &Service{Bench: bench}
-	flow, err := service.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "lost-ack", Provider: "claude", Label: "Work", SubscriptionToken: "fixture-token-once"})
+	flow, err := service.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "lost-ack", Provider: "codex", Label: "Work"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,12 +224,12 @@ func TestEnrollmentReceiptRecoversAfterRunnerRestartWithoutTokenReplay(t *testin
 	}
 	defer restored.Close()
 	service.Bench = restored
-	receipt, err := service.GetSubscriptionEnrollment(context.Background(), &pb.SubscriptionEnrollmentRequest{RequestKey: "lost-ack", Provider: "claude"})
+	receipt, err := service.GetSubscriptionEnrollment(context.Background(), &pb.SubscriptionEnrollmentRequest{RequestKey: "lost-ack", Provider: "codex"})
 	if err != nil || receipt.Id != flow.Id || receipt.State != "added" || receipt.SignInUrl != "" || receipt.UserCode != "" {
 		t.Fatal(receipt, err)
 	}
 	missing, err := service.GetSubscriptionEnrollment(context.Background(), &pb.SubscriptionEnrollmentRequest{RequestKey: "never-accepted", Provider: "codex"})
-	if err != nil || missing.State != "expired" {
+	if err != nil || missing.State != "expired" || missing.Error != runner.ExpiredSignIn || strings.Contains(missing.Error, "tracked") {
 		t.Fatal(missing, err)
 	}
 }
@@ -242,7 +247,12 @@ func TestSharedSubscriptionsAcrossRunnersAndRestart(t *testing.T) {
 	}
 	defer func() { dev.Close() }()
 	ws, ds := &Service{Bench: work}, &Service{Bench: dev}
-	flow, err := ws.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "shared-claude", Provider: "claude", Label: "Saved account", SubscriptionToken: "fixture-shared-token"})
+	signedIn := make(chan struct{})
+	close(signedIn)
+	work.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) {
+		return &fakeNativeAccount{authorize: signedIn}, nil
+	}
+	flow, err := ws.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "shared-first", Provider: "codex", Label: "Saved account"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,6 +341,7 @@ func TestSettingsCannotRefreshOrManageLocalCliAuthentication(t *testing.T) {
 
 func TestClaudeBrowserEnrollmentRegistersOnlyAfterNativeConfirmation(t *testing.T) {
 	s, _ := collectionService(t)
+	allowClaudeSignIn(t, s)
 	native := &fakeNativeAccount{authorize: make(chan struct{})}
 	s.Bench.AccountFactory = func(ctx context.Context, p accounts.Profile) (runner.NativeAccount, error) {
 		if p.Provider != "claude" || !p.NativeLogin || !p.Managed || p.Home != filepath.Join(s.Bench.Config.State, "accounts", p.ID, "claude") {
@@ -362,17 +373,114 @@ func TestCodexDisabledDeviceSignInExplainsPrerequisite(t *testing.T) {
 	native := &fakeNativeAccount{authorize: make(chan struct{}), loginError: codex.ErrDeviceAuthDisabled}
 	close(native.authorize)
 	s.Bench.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) { return native, nil }
-	flow, err := s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "device-disabled", Provider: "codex", Label: "Work"})
+	flow, err := s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "device-disabled", Provider: "codex", Label: "Work", SignInMethod: "device"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	failed := enrollmentState(t, s, flow.Id, "failed")
-	if failed.Error != codex.ErrDeviceAuthDisabled.Error() || failed.UserCode != "" || failed.SignInUrl != "" {
+	if failed.Error != codex.ErrDeviceAuthDisabled.Error() || failed.ErrorCode != runner.ErrorDeviceSignInDisabled || failed.SignInMethod != "device" || failed.UserCode != "" || failed.SignInUrl != "" {
 		t.Fatalf("wrong failed enrollment: %+v", failed)
 	}
 	for _, p := range s.Bench.Profiles() {
 		if p.ID == flow.ProfileId {
 			t.Fatal("failed login registered account")
 		}
+	}
+	// The way out the client offers: the same account, in the browser.
+	browser := &fakeNativeAccount{authorize: make(chan struct{})}
+	s.Bench.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) { return browser, nil }
+	retry, err := s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "device-disabled-browser", Provider: "codex", Label: "Work", SignInMethod: "browser"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waiting := enrollmentState(t, s, retry.Id, "awaiting_login")
+	if waiting.SignInMethod != "browser" || waiting.UserCode != "" || !strings.HasPrefix(waiting.SignInUrl, "https://auth.openai.com/oauth/") || browser.method.Load() != "browser" {
+		t.Fatalf("browser retry: %+v", waiting)
+	}
+	close(browser.authorize)
+	enrollmentState(t, s, retry.Id, "added")
+}
+
+// Codex signs in through the browser unless a code is asked for: no device
+// code is involved, and the page calls back to Codex on the Runner's computer.
+func TestCodexSignsInWithTheBrowserByDefault(t *testing.T) {
+	s, _ := collectionService(t)
+	native := &fakeNativeAccount{authorize: make(chan struct{})}
+	s.Bench.AccountFactory = func(_ context.Context, p accounts.Profile) (runner.NativeAccount, error) {
+		if p.Isolation != "environment" || p.Home != filepath.Join(s.Bench.Config.State, "accounts", p.ID, "codex") {
+			t.Error("browser sign-in escaped the profile's own CODEX_HOME", p.Home)
+		}
+		return native, nil
+	}
+	flow, err := s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "browser-codex", Provider: "codex", Label: "Work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flow.SignInMethod != "browser" {
+		t.Fatalf("default method: %+v", flow)
+	}
+	waiting := enrollmentState(t, s, flow.Id, "awaiting_login")
+	if waiting.SignInUrl == "" || waiting.UserCode != "" || native.method.Load() != "browser" {
+		t.Fatalf("browser sign-in: %+v", waiting)
+	}
+	// The same request asked again with the method spelled out is the same request.
+	if again, err := s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "browser-codex", Provider: "codex", Label: "Work", SignInMethod: "browser"}); err != nil || again.Id != flow.Id {
+		t.Fatal("explicit default is a different request", err)
+	}
+	// ... but asking for a code under the same request key is not.
+	if _, err := s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "browser-codex", Provider: "codex", Label: "Work", SignInMethod: "device"}); err == nil {
+		t.Fatal("request key reused for another sign-in method")
+	}
+	close(native.authorize)
+	enrollmentState(t, s, flow.Id, "added")
+	for _, bad := range []*pb.AddSubscriptionRequest{
+		{RequestKey: "claude-code", Provider: "claude", Label: "Personal", SignInMethod: "device"},
+		{RequestKey: "codex-other", Provider: "codex", Label: "Other", SignInMethod: "carrier-pigeon"},
+	} {
+		if _, err := s.AddSubscription(context.Background(), bad); err == nil {
+			t.Fatalf("accepted %+v", bad)
+		}
+	}
+}
+
+func TestCodexBrowserSignInSaysWhenAnotherSignInHoldsTheCallback(t *testing.T) {
+	s, _ := collectionService(t)
+	native := &fakeNativeAccount{startError: codex.ErrSignInInProgress}
+	s.Bench.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) { return native, nil }
+	flow, err := s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "port-busy", Provider: "codex", Label: "Work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := enrollmentState(t, s, flow.Id, "failed")
+	if failed.ErrorCode != runner.ErrorSignInInProgress || failed.Error != codex.ErrSignInInProgress.Error() || failed.SignInUrl != "" {
+		t.Fatalf("port busy: %+v", failed)
+	}
+	if !strings.Contains(failed.Error, "Another Codex sign-in is in progress") {
+		t.Fatal(failed.Error)
+	}
+	// Any other failure to start stays private and offers nothing specific.
+	other := &fakeNativeAccount{startError: errors.New("adapter account/login/start: secret detail")}
+	s.Bench.AccountFactory = func(context.Context, accounts.Profile) (runner.NativeAccount, error) { return other, nil }
+	flow, err = s.AddSubscription(context.Background(), &pb.AddSubscriptionRequest{RequestKey: "other-failure", Provider: "codex", Label: "Work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed = enrollmentState(t, s, flow.Id, "failed")
+	if failed.ErrorCode != "" || strings.Contains(failed.Error, "secret") {
+		t.Fatalf("private failure: %+v", failed)
+	}
+}
+
+// allowClaudeSignIn turns Claude sign-in in Lazybox on, as the person does in
+// Settings → Agents & workspaces → Claude (off by default; CLAUDE_COMPLIANCE.md).
+func allowClaudeSignIn(t *testing.T, s *Service) {
+	t.Helper()
+	settings, err := s.GetRunnerSettings(context.Background(), &pb.InfoRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings.ClaudeSubscriptionSignIn = true
+	if _, err = s.SaveRunnerSettings(context.Background(), settings); err != nil {
+		t.Fatal(err)
 	}
 }

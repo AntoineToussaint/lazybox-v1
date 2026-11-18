@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -48,6 +49,38 @@ type Client struct {
 	readErr error
 	done    chan struct{}
 	once    sync.Once
+	// held ends this client's count in holders, once, when its connection ends.
+	held sync.Once
+}
+
+// holders counts this process's open client connections per host directory.
+// The Runner holding the state lock is the only legitimate client of its
+// hosts, so whether a client in this process holds a host is what decides that
+// the host is claimed. The host's own view does not: it learns that a
+// predecessor's connection closed only once it reads the close, which can lag
+// the kernel by longer than a Runner restart takes.
+var holders = struct {
+	sync.Mutex
+	n map[string]int
+}{n: map[string]int{}}
+
+func hold(dir string) {
+	holders.Lock()
+	holders.n[filepath.Clean(dir)]++
+	holders.Unlock()
+}
+
+func (c *Client) unhold() {
+	c.held.Do(func() { unholdDir(c.dir) })
+}
+
+// Held reports whether a client in this process is attached to the host: one
+// launched or attached here whose connection was neither detached nor ended by
+// the host (superseded, released or gone).
+func Held(root, id string) bool {
+	holders.Lock()
+	defer holders.Unlock()
+	return holders.n[filepath.Clean(filepath.Join(root, id))] > 0
 }
 
 // Options tune a new host. Zero values select the defaults.
@@ -57,6 +90,29 @@ type Options struct {
 	// OrphanAfter is how long a host keeps its program running with no Runner
 	// attached; DefaultOrphanAfter if zero.
 	OrphanAfter time.Duration
+	// Scrollback bounds the output a terminal host keeps for a re-attaching
+	// Runner; DefaultScrollback if zero.
+	Scrollback int
+	// Kind, Owner and Label are recorded for an inventory (see Record).
+	Kind, Owner, Label string
+}
+
+// launching marks a host this process is starting as held, from before the
+// host exists until its client holds it: a sweep that runs in between must not
+// take a host on its way up for an orphan.
+func launching(dir string) func() {
+	hold(dir)
+	var once sync.Once
+	return func() { once.Do(func() { unholdDir(dir) }) }
+}
+
+func unholdDir(dir string) {
+	dir = filepath.Clean(dir)
+	holders.Lock()
+	if holders.n[dir]--; holders.n[dir] <= 0 {
+		delete(holders.n, dir)
+	}
+	holders.Unlock()
 }
 
 // Launch starts a new detached host under root and attaches to it. The host
@@ -73,6 +129,7 @@ func Launch(ctx context.Context, root string, opts Options) (*Client, error) {
 	if err := os.Mkdir(dir, 0700); err != nil {
 		return nil, err
 	}
+	defer launching(dir)()
 	// Until the host runs, nothing else will remove its directory.
 	started := false
 	defer func() {
@@ -80,13 +137,46 @@ func Launch(ctx context.Context, root string, opts Options) (*Client, error) {
 			_ = os.RemoveAll(dir)
 		}
 	}()
-	binary, err := os.Executable()
+	token := rand.Text() + rand.Text()
+	label := opts.Label
+	if label == "" {
+		label = opts.Kind
+	}
+	description := strings.TrimSpace("Lazybox session host " + label)
+	record, err := startHost(ctx, dir, newLaunch(id, dir, token, opts), description, true)
+	if errors.Is(err, errScoped) {
+		// systemd-run passed the check but not this scope: the host is worth
+		// more than its scope, so it starts as it would without systemd, and
+		// the next hosts do too until the check is made again.
+		scopeFailed(err.Error())
+		record, err = startHost(ctx, dir, newLaunch(id, dir, token, opts), description, false)
+	}
 	if err != nil {
 		return nil, err
 	}
+	c, err := dial(ctx, dir, record, 0)
+	if err != nil {
+		_ = syscall.Kill(record.PID, syscall.SIGKILL)
+		return nil, err
+	}
+	started = true
+	return c, nil
+}
+
+// errScoped marks a host that failed to start in its own systemd scope.
+var errScoped = errors.New("in its systemd scope")
+
+// startHost starts the host process for cfg and waits for its record. With
+// scope, it starts in a transient systemd scope of its own where the system
+// offers one (scope_linux.go); a failure then wraps errScoped.
+func startHost(ctx context.Context, dir string, cfg launch, description string, scope bool) (Record, error) {
+	binary, err := os.Executable()
+	if err != nil {
+		return Record{}, err
+	}
 	logFile, err := os.OpenFile(filepath.Join(dir, "host.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
-		return nil, err
+		return Record{}, err
 	}
 	defer logFile.Close()
 	cmd := exec.Command(binary, helperArgument)
@@ -95,23 +185,30 @@ func Launch(ctx context.Context, root string, opts Options) (*Client, error) {
 	cmd.Stderr = logFile
 	// Its own session: no Runner signal, process-group kill or terminal hangup reaches it.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	// And on Linux its own cgroup: no service manager's stop of the Runner reaches it.
+	scoped := scope && inOwnScope(cmd, ScopeUnit(cfg.ID), description)
+	failed := func(err error) error {
+		if scoped {
+			return fmt.Errorf("session host startup failed %w: %w", errScoped, err)
+		}
+		return fmt.Errorf("session host startup failed: %w", err)
+	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, err
+		return Record{}, err
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return Record{}, err
 	}
 	if err = cmd.Start(); err != nil {
-		return nil, err
+		return Record{}, failed(err)
 	}
 	// The Runner never waits on its hosts; reap only if this one fails to start.
 	cleanup := func() { _ = cmd.Process.Kill(); _ = cmd.Wait() }
-	token := rand.Text() + rand.Text()
-	if err = json.NewEncoder(stdin).Encode(launch{ID: id, Dir: dir, Token: token, BufferLimit: opts.BufferLimit, OrphanAfter: opts.OrphanAfter}); err != nil {
+	if err = json.NewEncoder(stdin).Encode(cfg); err != nil {
 		cleanup()
-		return nil, err
+		return Record{}, failed(err)
 	}
 	_ = stdin.Close()
 	ready := make(chan error, 1)
@@ -120,24 +217,20 @@ func Launch(ctx context.Context, root string, opts Options) (*Client, error) {
 	select {
 	case err = <-ready:
 	case <-ctx.Done():
-		err = ctx.Err()
+		// Not the scope's fault: no second attempt.
+		cleanup()
+		return Record{}, fmt.Errorf("session host startup failed: %w", ctx.Err())
 	case <-time.After(15 * time.Second):
 		err = errors.New("session host did not become ready")
 	}
-	if err != nil || record.ID != id || record.Token != token {
+	if err != nil || record.ID != cfg.ID || record.Token != cfg.Token {
 		cleanup()
-		return nil, fmt.Errorf("session host startup failed: %w", errors.Join(err, readLog(dir)))
+		return Record{}, failed(errors.Join(err, readLog(dir)))
 	}
 	// Release the child: the host outlives this process and must not stay a zombie
 	// of a long-lived Runner. Reaping happens in the background.
 	go func() { _ = cmd.Wait() }()
-	c, err := dial(ctx, dir, record, 0)
-	if err != nil {
-		_ = syscall.Kill(record.PID, syscall.SIGKILL)
-		return nil, err
-	}
-	started = true
-	return c, nil
+	return record, nil
 }
 
 func readLog(dir string) error {
@@ -195,12 +288,15 @@ func dial(ctx context.Context, dir string, record Record, ack uint64) (*Client, 
 		}
 		return nil, errors.New(c.welcome.Text)
 	}
+	hold(dir)
 	go c.read(dec)
 	return c, nil
 }
 
 func (c *Client) read(dec *json.Decoder) {
 	defer close(c.frames)
+	// The host closes a superseded or released client's connection.
+	defer c.unhold()
 	for {
 		var f frame
 		if err := dec.Decode(&f); err != nil {
@@ -268,8 +364,31 @@ func (c *Client) Spawn(ctx context.Context, spec Spec) error {
 // Send writes one line to the agent's stdin.
 func (c *Client) Send(line json.RawMessage) error { return c.write(frame{Op: "send", Line: line}) }
 
+// Input writes raw bytes to a terminal host's shell, at most InputLimit.
+func (c *Client) Input(data []byte) error {
+	if len(data) > InputLimit {
+		return errors.New("terminal input exceeds 64 KiB")
+	}
+	return c.write(frame{Op: "input", Data: data})
+}
+
+// Resize changes a terminal host's size.
+func (c *Client) Resize(size Size) error { return c.write(frame{Op: "resize", Size: &size}) }
+
+// Scrollback is a terminal host's retained output when this client attached,
+// and the total output it had produced then: live chunks continue from there.
+func (c *Client) Scrollback() ([]byte, uint64) { return c.welcome.Scrollback, c.welcome.Produced }
+
 // Ack records that every line up to seq is durably handled by this client.
 func (c *Client) Ack(seq uint64) error { return c.write(frame{Op: "ack", Seq: seq}) }
+
+// Resolve tells the host the agent no longer waits on its request id (the raw
+// JSON-RPC id of the request line) although no reply was written: the agent
+// resolved it itself, or the turn it belonged to ended. The host then never
+// redelivers it. A host older than this op ignores it.
+func (c *Client) Resolve(id json.RawMessage) error {
+	return c.write(frame{Op: "resolve", Line: id})
+}
 
 // SetUpstream points the host's provider proxy at this Runner's gateway.
 func (c *Client) SetUpstream(url string) error { return c.write(frame{Op: "upstream", URL: url}) }
@@ -326,6 +445,7 @@ func (c *Client) receive(ctx context.Context) (frame, error) {
 
 // Detach closes this connection and leaves the host and its agent running.
 func (c *Client) Detach() error {
+	c.unhold()
 	c.once.Do(func() { close(c.done) })
 	return c.conn.Close()
 }

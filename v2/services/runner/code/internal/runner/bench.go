@@ -6,18 +6,27 @@ import (
 	"errors"
 	"fmt"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/assistant"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/availability"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/docstool"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/accounts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/agent"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/acp"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/claude"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/adapters/codex"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/artifacts"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/attachments"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/browser"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/codecheckpoints"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/collections"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/commands"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/engine"
@@ -26,9 +35,13 @@ import (
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/preferences"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/repositories"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/repositorycatalog"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/reviews"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/sessionstore"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/snippets"
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/telemetry"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/terminals"
 	"github.com/AntoineToussaint/lazybox/v2/internal/sources/github"
+	"github.com/AntoineToussaint/lazybox/v2/internal/work"
 )
 
 type Gateway struct {
@@ -49,17 +62,61 @@ type Config struct {
 	SubscriptionState string                `json:"subscriptionState,omitempty"`
 	GitHubApp         *githubconnection.App `json:"githubApp,omitempty"`
 	SessionStore      sessionstore.Store    `json:"-"`
-	Endpoint          string                `json:"-"`
-	State             string                `json:"-"`
+	// Address is the URL agents' CLI reaches this Runner at. Each execution
+	// gets its own endpoint file with it and a credential scoped to that
+	// execution; agents never see the owner's endpoint file or bearer.
+	Address string `json:"-"`
+	State   string `json:"-"`
 	// HostRoot holds the session hosts that keep agents alive across Runner
 	// restarts. Empty selects <State>/hosts.
 	HostRoot string `json:"-"`
 	// CommandHostRoot holds the session hosts of managed commands, which
 	// outlive the Runner too. Empty selects <State>/command-hosts.
-	CommandHostRoot string                   `json:"-"`
-	Worker          string                   `json:"worker"`
-	CodexBinary     string                   `json:"codexBinary,omitempty"`
-	ClaudeBinary    string                   `json:"claudeBinary,omitempty"`
+	CommandHostRoot string `json:"-"`
+	Worker          string `json:"worker"`
+	// BrowserWorker is the agent browser service's main.js (workers/browser).
+	// Empty: this Runner offers agents no browser.
+	BrowserWorker string `json:"browserWorker,omitempty"`
+	// CLIDir holds the lazybox CLI. It is put first on every agent's PATH and
+	// enables the command-output briefing. Empty leaves both off.
+	CLIDir string `json:"-"`
+	// OutputRoot holds each execution's full-output files from `lazybox run`,
+	// deleted with its conversation. Empty selects <State>/command-output.
+	OutputRoot string `json:"-"`
+	// OutputFallbackRoot is where the CLI saves them when a sandbox keeps it
+	// out of OutputRoot. Empty selects <temp>/lazybox-output, the CLI's own default.
+	OutputFallbackRoot string `json:"-"`
+	// ProcessFile is the user's orchestration process file: their defaults
+	// and the ceiling no repository process may exceed (internal/process).
+	// Empty selects <State>/process.yaml, so each environment has its own.
+	ProcessFile string `json:"processFile,omitempty"`
+	// ActionsFile is the user's actions and hooks file (POWER.md). Empty
+	// selects <State>/actions.yaml; the Dev and Working launchers pass the
+	// person's own (~/.config/lazybox/actions.yaml), shared by both. The
+	// config files (keys.yaml, settings.yaml, layouts/) live in its folder.
+	ActionsFile string `json:"actionsFile,omitempty"`
+	// ThemeDirectory is the user's themes folder for Settings → Appearance:
+	// .json and .toml files parsed on every ListThemes (internal/themes).
+	// Empty selects <State>/themes, so each environment has its own.
+	ThemeDirectory string `json:"themeDirectory,omitempty"`
+	// OutputBudget bounds both roots together; the oldest files go first.
+	// Zero selects 1 GiB.
+	OutputBudget int64 `json:"commandOutputBudget,omitempty"`
+	// DocsDirectory is the Lazybox documentation (v2/docs) the help assistant
+	// reads through its documentation tools. An installed release ships it;
+	// the Dev and Working launchers name their source's. Empty: none.
+	DocsDirectory string `json:"docsDirectory,omitempty"`
+	CodexBinary   string `json:"codexBinary,omitempty"`
+	ClaudeBinary  string `json:"claudeBinary,omitempty"`
+	// ACPLookPath finds the built-in ACP agents (Gemini CLI, Goose…, ACP.md)
+	// on the Runner's PATH; the service sets exec.LookPath. Nil offers only
+	// the agents the person added, so what a test machine has installed
+	// never changes a test's providers.
+	ACPLookPath func(string) (string, error) `json:"-"`
+	// Node runs the Claude SDK worker. Empty is `node` on the Runner's PATH
+	// (Dev, Working); an installed release names the Node it ships
+	// (INSTALL.md), so a launchd service with a minimal PATH still finds one.
+	Node            string                   `json:"node,omitempty"`
 	Profiles        []accounts.Profile       `json:"profiles"`
 	Gateways        []Gateway                `json:"gateways,omitempty"`
 	Defaults        accounts.Options         `json:"defaults"`
@@ -68,6 +125,36 @@ type Config struct {
 	CommandBudget   int64                    `json:"commandBudget,omitempty"`
 	WorktreeRoot    string                   `json:"worktreeRoot,omitempty"`
 	Repositories    []collections.Repository `json:"repositories,omitempty"`
+
+	// HomeCheckoutRoot is where a repository's home checkout goes by default
+	// (<root>/<owner>/<name>, homes.go). Empty selects ~/lazybox/repos.
+	// Nothing is created there until the person asks for a home.
+	HomeCheckoutRoot string `json:"homeCheckoutRoot,omitempty"`
+
+	// EventBudget (above) is the size of one segment of a conversation's
+	// event journal: a journal that reaches it continues in a new segment.
+	// EventHistoryBudget bounds every segment of one attempt's journal
+	// together; zero selects 2 GiB. Past it, events are no longer recorded
+	// and the conversation shows the fault; its agent keeps running.
+	EventHistoryBudget int64 `json:"eventHistoryBudget,omitempty"`
+
+	// TerminalHostRoot holds the session hosts of workspace terminals (a
+	// person's shells). Empty selects <State>/terminal-hosts.
+	TerminalHostRoot string `json:"-"`
+	// MaxLiveTerminals bounds running terminals; zero selects 16.
+	MaxLiveTerminals int `json:"maxLiveTerminals,omitempty"`
+	// Processes selects how agents, commands and terminals are hosted.
+	Processes ProcessHosting `json:"processes,omitempty"`
+	// CodeCheckpoints bounds the per-turn file checkpoints; zero values select defaults.
+	CodeCheckpoints codecheckpoints.Limits `json:"codeCheckpoints,omitempty"`
+	// ArtifactPoll is how often tracked artifact files are checked; a change
+	// becomes a version once it has been stable for ArtifactDebounce. Zero
+	// selects 2s for both.
+	ArtifactPoll time.Duration `json:"-"`
+	// ItemPoll is how often tracked items are looked at (items.go); zero is
+	// the default, negative leaves it to the caller (tests).
+	ItemPoll         time.Duration `json:"-"`
+	ArtifactDebounce time.Duration `json:"-"`
 }
 
 type Execution struct {
@@ -84,15 +171,25 @@ type Execution struct {
 	Saved                     sessionstore.Record
 	Archived                  bool
 	RecoveryRequired          bool
+	// browserTools: its agent was started with the browser tools (BROWSER.md).
+	browserTools bool
 }
 type Bench struct {
-	RepositoryCatalog   *repositorycatalog.Cache
-	Telemetry           telemetry.Store
-	Meter               *telemetry.Gateway
-	Prices              telemetry.Pricer
-	Preferences         *preferences.Store
-	GitHub              *githubconnection.Manager
-	GitHubAPI           github.API
+	RepositoryCatalog *repositorycatalog.Cache
+	Telemetry         telemetry.Store
+	Meter             *telemetry.Gateway
+	Prices            telemetry.Pricer
+	Preferences       *preferences.Store
+	// Reviews holds each workspace's inline review comments.
+	Reviews     *reviews.Store
+	GitHub      *githubconnection.Manager
+	GitHubAPI   github.API
+	GitHubPulls github.PullRequests
+	// GitHubIssues reads issues to start a workspace from one (work_items.go).
+	GitHubIssues github.IssueReader
+	// GitHubItems is what tracked pull requests read (items.go); nil uses
+	// GitHubPulls when it can.
+	GitHubItems         GitHubItemsAPI
 	RepositoryImporter  *repositories.Importer
 	RepositoryDiscovery *repositories.Discovery
 	probes              int
@@ -106,19 +203,69 @@ type Bench struct {
 	Config              Config
 	Accounts            *accounts.State
 	Commands            *commands.Manager
+	Terminals           *terminals.Manager
 	Attachments         *attachments.Store
 	Collections         *collections.Manager
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	items               map[string]*Execution
-	opening             int
-	closed              bool
-	pending             map[string]bool
-	starts              sync.WaitGroup
-	closeOnce           sync.Once
-	closeErr            error
+	// Artifacts holds each workspace's versioned documents (artifacts.go).
+	Artifacts *artifacts.Store
+	watchers  sync.WaitGroup
+	ctx       context.Context
+	cancel    context.CancelFunc
+	items     map[string]*Execution
+	opening   int
+	closed    bool
+	pending   map[string]bool
+	starts    sync.WaitGroup
+	closeOnce sync.Once
+	closeErr  error
+	trimming  atomic.Bool
+	trims     sync.WaitGroup
+	// ports caches what each managed command listens on (CommandPorts).
+	ports portCache
+	// Availability is the last probe of the provider programs
+	// (provider_availability.go); a test may replace its Probe.
+	Availability *availability.Cache
 	// Adapters is an injection boundary for deterministic conformance tests.
 	Adapters map[string]agent.Adapter
+	// ACP lists the ACP agents the Runner runs (acp_agents.go).
+	ACP *acp.Registry
+	// agentKey derives each execution's scoped credential (agent_credentials.go).
+	agentKey []byte
+	// hosting starts every agent, command and terminal host (hosting.go).
+	hosting *hosting
+	// Checkpoints records each conversation's files around every turn
+	// (code_checkpoints.go); checkpointing counts the ones in progress.
+	Checkpoints   *codecheckpoints.Manager
+	checkpointing sync.WaitGroup
+	// runtime is the workspace runtime: approvals, port blocks, runs
+	// (workspace_runtime.go).
+	runtime *workspaceRuntime
+	// Work holds every mission's event log; Prompts the prompt log (work.go).
+	Work    *work.Store
+	Prompts *work.Prompts
+	// snippetCatalog is the catalog last listed, to label snippet messages.
+	snippetCatalog atomic.Pointer[[]snippets.Entry]
+	// power is the actions file, its hooks and the CLI's window requests (power.go).
+	power powerState
+	// repositoryRequests are agents' requests for repositories (repository_requests.go).
+	repositoryRequests *repositoryRequests
+	// conversationStarts are agents' requests to start a conversation (conversation_starts.go).
+	conversationStarts *conversationStarts
+	// Browser is every conversation's agent browser (browser.go, BROWSER.md).
+	Browser *browser.Manager
+	// reviewAsks wakes agents waiting for an answer (review_loop.go).
+	reviewAsks *reviewAsks
+	// agentCLI is the shell integration that keeps this Runner's CLI first on
+	// agents' PATH, and the last probe of it (agent_cli.go).
+	agentCLI agentCLIState
+	// titling is the conversation naming in progress (titles.go).
+	titling titling
+	// orchestrator serializes spawns and wakes waiting orchestrators (orchestrator.go).
+	orchestrator *orchestratorState
+	// workItems are the tracked pull requests and their links (items.go).
+	workItems itemsState
+	// homeMu serializes creating and changing home checkouts (homes.go).
+	homeMu sync.Mutex
 }
 
 func New(cfg Config) (*Bench, error) {
@@ -143,7 +290,34 @@ func New(cfg Config) (*Bench, error) {
 	if cfg.CommandHostRoot == "" {
 		cfg.CommandHostRoot = filepath.Join(cfg.State, "command-hosts")
 	}
-	if !filepath.IsAbs(cfg.HostRoot) || !filepath.IsAbs(cfg.CommandHostRoot) {
+	if cfg.OutputRoot == "" {
+		cfg.OutputRoot = filepath.Join(cfg.State, "command-output")
+	}
+	if cfg.OutputFallbackRoot == "" {
+		cfg.OutputFallbackRoot = filepath.Join(os.TempDir(), "lazybox-output")
+	}
+	if cfg.OutputBudget == 0 {
+		cfg.OutputBudget = 1 << 30
+	}
+	if !filepath.IsAbs(cfg.OutputRoot) || !filepath.IsAbs(cfg.OutputFallbackRoot) || cfg.OutputBudget < 0 {
+		return nil, errors.New("command output roots must be absolute and its budget not negative")
+	}
+	if cfg.TerminalHostRoot == "" {
+		cfg.TerminalHostRoot = filepath.Join(cfg.State, "terminal-hosts")
+	}
+	if cfg.ProcessFile == "" {
+		cfg.ProcessFile = filepath.Join(cfg.State, "process.yaml")
+	}
+	if cfg.ThemeDirectory == "" {
+		cfg.ThemeDirectory = filepath.Join(cfg.State, "themes")
+	}
+	if err := cfg.Processes.Validate(); err != nil {
+		return nil, err
+	}
+	if cfg.MaxLiveTerminals < 0 {
+		return nil, errors.New("live terminal limit must not be negative; zero selects the bounded default")
+	}
+	if !filepath.IsAbs(cfg.HostRoot) || !filepath.IsAbs(cfg.CommandHostRoot) || !filepath.IsAbs(cfg.TerminalHostRoot) {
 		return nil, errors.New("session host roots must be absolute directories")
 	}
 	if !filepath.IsAbs(cfg.SubscriptionState) {
@@ -160,6 +334,12 @@ func New(cfg Config) (*Bench, error) {
 	}
 	if cfg.EventBudget > 64<<20 || cfg.CommandBudget > 64<<20 {
 		return nil, errors.New("per-stream budget must not exceed 64 MiB")
+	}
+	if cfg.EventHistoryBudget == 0 {
+		cfg.EventHistoryBudget = 2 << 30
+	}
+	if cfg.EventHistoryBudget < cfg.EventBudget || cfg.EventHistoryBudget > 64<<30 {
+		return nil, errors.New("event history budget must be at least the event budget and at most 64 GiB")
 	}
 	if len(cfg.Profiles) == 0 {
 		cfg.Profiles = []accounts.Profile{{ID: "codex-default", Provider: "codex", Isolation: "inherited"}, {ID: "claude-default", Provider: "claude", Isolation: "inherited"}}
@@ -189,9 +369,14 @@ func New(cfg Config) (*Bench, error) {
 	if err := os.MkdirAll(filepath.Join(cfg.State, "sessions"), 0700); err != nil {
 		return nil, err
 	}
+	agentKey, err := loadAgentKey(filepath.Join(cfg.State, "agent-credential.key"))
+	if err != nil {
+		return nil, err
+	}
 	// Commands a previous Runner left running are re-attached here, before any
 	// execution can start or inspect one.
-	manager, err := commands.NewHosted(filepath.Join(cfg.State, "commands"), cfg.CommandBudget, cfg.MaxLiveCommands, cfg.CommandHostRoot)
+	hosts := newHosting(cfg.Processes)
+	manager, err := commands.NewHostedOn(filepath.Join(cfg.State, "commands"), cfg.CommandBudget, cfg.MaxLiveCommands, cfg.CommandHostRoot, hosts)
 	if err != nil {
 		return nil, err
 	}
@@ -230,10 +415,26 @@ func New(cfg Config) (*Bench, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: cfg.ClaudeBinary}}}
+	b := &Bench{History: history, archives: map[string]*Execution{}, Config: cfg, profiles: append([]accounts.Profile(nil), cfg.Profiles...), Accounts: accountState, Commands: manager, Attachments: files, Collections: groups, ctx: ctx, cancel: cancel, pending: map[string]bool{}, enrollments: map[string]*Enrollment{}, items: map[string]*Execution{}, agentKey: agentKey, hosting: hosts, Adapters: map[string]agent.Adapter{"codex": codex.Adapter{Binary: cfg.CodexBinary}, "claude": claude.Adapter{Worker: cfg.Worker, Binary: claudeProgram(cfg), Node: cfg.Node}}}
+	if b.ACP, err = openACP(cfg.State); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	b.profiles = b.withACP(b.profiles)
+	b.Availability = &availability.Cache{Probe: availability.DefaultProbe(cfg.Worker, cfg.Node, cfg.ClaudeBinary, cfg.CodexBinary, claudeProgram(cfg))}
+	b.Availability.Probe.Agents, b.Availability.Probe.AgentProgram = b.ACPAgents, b.acpProgram
+	b.Availability.Probe.Models = programModels
+	// Shells a previous Runner left running are re-attached here, like commands.
+	if b.Terminals, err = terminals.Open(filepath.Join(cfg.State, "terminals"), cfg.TerminalHostRoot, terminals.Options{MaxLive: cfg.MaxLiveTerminals, Backend: hosts}); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	// Re-attached shells reach this Runner through their own credential.
+	b.refreshTerminalEndpoints()
 	privateStore, err := githubconnection.NewFileStore(filepath.Join(cfg.State, "connections"))
 	if err == nil {
-		b.GitHubAPI = github.New()
+		client := github.New()
+		b.GitHubAPI, b.GitHubPulls, b.GitHubIssues = client, client, client
 		b.GitHub, err = githubconnection.New(privateStore, b.GitHubAPI)
 	}
 	if err == nil && cfg.GitHubApp != nil {
@@ -241,6 +442,13 @@ func New(cfg Config) (*Bench, error) {
 	}
 	if err == nil && groups != nil {
 		b.RepositoryImporter, err = repositories.New(filepath.Join(cfg.State, "repositories"), groups, repositories.Git{})
+		if err == nil {
+			// Source copies imported before their origin had a fetch refspec
+			// get it (repositories/fetchspec.go). Nothing is fetched.
+			if _, migrateErr := b.RepositoryImporter.MigrateOriginFetch(ctx); migrateErr != nil {
+				log.Printf("repositories: origin fetch refspec: %v", migrateErr)
+			}
+		}
 	}
 	if err == nil {
 		var store *repositories.FileCatalogStore
@@ -250,6 +458,14 @@ func New(cfg Config) (*Bench, error) {
 		}
 	}
 	if err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if b.Checkpoints, err = codecheckpoints.Open(filepath.Join(cfg.State, "code-checkpoints"), cfg.CodeCheckpoints); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if b.runtime, err = openWorkspaceRuntime(filepath.Join(cfg.State, "workspace-runtime")); err != nil {
 		_ = b.Detach()
 		return nil, err
 	}
@@ -271,7 +487,45 @@ func New(cfg Config) (*Bench, error) {
 		_ = b.Detach()
 		return nil, err
 	}
+	b.Reviews, err = reviews.New(filepath.Join(cfg.State, "reviews"))
+	if err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if b.repositoryRequests, err = openRepositoryRequests(filepath.Join(cfg.State, "repository-requests.json")); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if b.conversationStarts, err = openConversationStarts(filepath.Join(cfg.State, "conversation-starts.json")); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if err = b.openBrowser(); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	// The person's choice of backend applies to the next process started.
+	preferred := func() string { return b.Preferences.Snapshot().ProcessBackend }
+	b.hosting.preferred.Store(&preferred)
 	b.Prices = b.Preferences
+	if err = b.openWork(); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if b.Artifacts, err = artifacts.Open(filepath.Join(cfg.State, "artifacts")); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	b.watchArtifacts()
+	b.openPower()
+	if err = b.migrateAccounts(); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
+	if err = b.openItems(); err != nil {
+		_ = b.Detach()
+		return nil, err
+	}
 	b.Telemetry, err = telemetry.Open(filepath.Join(cfg.State, "telemetry.db"))
 	if err == nil {
 		b.Meter, err = telemetry.StartGateway(b.Telemetry, b.Prices, cfg.MeterUpstreams)
@@ -348,7 +602,14 @@ func (b *Bench) OpenAssistant(profile, purpose, contextText string, options acco
 	}
 	options.Permission = "read-only"
 	options.Workflow = "execute"
-	contextText = assistant.Context + "\nYou are the Lazybox application assistant for " + purpose + ". Answer from the supplied context. Produce advice or a proposal; do not execute commands, edit files, or apply configuration. Supplied context follows:\n" + contextText
+	role := "Answer from the supplied context. Produce advice or a proposal; do not execute commands, edit files, or apply configuration."
+	product := assistant.Context
+	if purpose == "help" {
+		// Only the help assistant has the settings and documentation tools; the user approves each settings change.
+		product += "\n" + assistant.Docs(docstool.Index(b.Config.DocsDirectory)) + "\n" + assistant.Settings
+		role = "Answer from the documentation and the supplied context. Do not execute commands or edit files. You may propose a change to Lazybox's own settings only through the settings tools, and only the user's approval applies it."
+	}
+	contextText = product + "\nYou are the Lazybox application assistant for " + purpose + ". " + role + " Supplied context follows:\n" + contextText
 	collectionID := ""
 	if len(workspace) > 0 {
 		collectionID = workspace[0]
@@ -415,6 +676,12 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 			Members  []collections.Member
 		}{c.ID, c.Root, c.Members})
 		workspaceContext := "Runner workspace (paths are on the Runner; branch and baseCommit describe initial provisioning):\n" + string(data) + "\nWork across these member directories. Read each repository's applicable agent instructions and follow the resolved work policies."
+		if line := originBriefing(c); line != "" {
+			workspaceContext += "\n" + line
+		}
+		if line := b.homesBriefing(c); line != "" {
+			workspaceContext += "\n" + line
+		}
 		if parent == nil {
 			contextText += "\n" + workspaceContext
 		}
@@ -470,16 +737,24 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 			}
 		}
 	}
+	var briefing []briefingSection
 	if parent == nil {
 		prefs := b.Preferences.Snapshot()
-		extra := prefs.ClaudeContext
-		if selected.Provider == "codex" {
-			extra = prefs.CodexContext
-		}
+		// The briefing's sections, each at the version recorded below.
+		briefing = b.briefingSections(selected.Provider, purpose, collectionID, b.browserFor(selected.Provider, purpose, collectionID))
 		if options.Instructions == "" {
 			options.Instructions = b.Config.Defaults.Instructions
 		}
-		contextText += "\n" + prefs.Context + "\n" + extra + "\n" + options.Instructions
+		contextText += "\n" + sectionText(briefing, "settings") + "\n" + sectionText(briefing, "provider") + "\n" + options.Instructions
+		var rest []string
+		for _, s := range briefing {
+			if s.id != "settings" && s.id != "provider" {
+				rest = append(rest, s.text)
+			}
+		}
+		if len(rest) > 0 {
+			contextText += "\n" + strings.Join(rest, "\n\n")
+		}
 		if options.Workflow == "" {
 			options.Workflow = b.Config.Defaults.Workflow
 		}
@@ -489,9 +764,8 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 				options.Permission = "read-only"
 			}
 		}
-		if options.RotationProfiles == nil {
-			options.RotationProfiles = b.Config.Defaults.RotationProfiles
-		}
+		policy, switching := b.AccountPolicy(selected.Provider)
+		options.RotationProfiles = rotationPool(options, b.Config.Defaults.RotationProfiles, b.Profiles(), selected, prefs.RotationExcluded, policy, switching)
 		options.Gateway = nil
 		if options.Model == "" {
 			options.Model = b.Config.Defaults.Model
@@ -523,7 +797,10 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	if err = options.Validate(); err != nil {
 		return nil, err
 	}
-	env, err := accounts.Resolve(selected, os.Environ())
+	if err = b.claudeSignInAllowed(selected); err != nil {
+		return nil, err
+	}
+	env, err := b.profileEnv(selected)
 	if err != nil {
 		return nil, err
 	}
@@ -538,25 +815,43 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 			return nil, errors.New("gateway credential environment reference unavailable")
 		}
 	}
-	env = append(env, "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint)
-	env = append(env, "LAZYBOX_V2_SESSION_ID="+id)
-	if collectionID != "" {
-		env = append(env, "LAZYBOX_V2_COLLECTION_ID="+collectionID)
+	env = b.executionEnv(env, id, collectionID)
+	if err = b.writeAgentEndpoint(id); err != nil {
+		return nil, err
 	}
+	defer func() {
+		b.mu.Lock()
+		attached := b.items[id] != nil
+		b.mu.Unlock()
+		if !attached {
+			_ = b.removeAgentEndpoint(id)
+		}
+	}()
 	if workID == "" {
 		workID = id
 	}
-	spool, err := journal.Open(filepath.Join(b.Config.State, "sessions", id+".jsonl"), b.Config.EventBudget)
+	spool, err := b.openJournal(id)
 	if err != nil {
 		return nil, err
 	}
 	e := &Execution{ID: id, WorkID: workID, Previous: previous, Cwd: cwd, CollectionID: collectionID, Purpose: purpose, Profile: selected, Options: options, Env: env, spool: spool}
+	e.browserTools = b.browserOffered(e)
 	conversationID := id
 	if parent != nil {
 		conversationID = parent.ConversationID
 	}
 	adapter := b.sessionAdapter(e, selected, options, conversationID)
 	record := sessionstore.Record{ID: id, ConversationID: conversationID, Previous: previous, WorkID: workID, CollectionID: collectionID, Cwd: cwd, Purpose: purpose, Context: contextText, ProfileID: profile, Provider: selected.Provider, ProfileBinding: profileBinding(selected), Options: options, GatewayID: b.GatewayID(e), Title: filepath.Base(cwd), CreatedAt: time.Now().UTC(), Snapshot: engine.Snapshot{ID: id, Profile: profile, Purpose: purpose, Reference: resume}}
+	if parent != nil {
+		// A successor continues the conversation, including updates it already
+		// received: it has the briefing its predecessor had.
+		record.Instructions = parent.Instructions
+		record.Briefing = parent.Briefing
+	} else {
+		record.Briefing = briefingVersions(briefing)
+	}
+	offered := e.browserTools
+	record.BrowserTools = &offered
 	record.ProfileBindings = map[string]string{}
 	for _, p := range b.Profiles() {
 		record.ProfileBindings[p.ID] = profileBinding(p)
@@ -568,6 +863,9 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 		}
 		record.Snapshot.Capabilities = parent.Snapshot.Capabilities
 		record.ProviderSettings = parent.ProviderSettings
+		if parent.Provider == selected.Provider {
+			record.Snapshot.Grants = parent.Snapshot.Grants
+		}
 	}
 	e.Saved = record
 	if err = b.History.Create(b.ctx, record); err != nil {
@@ -578,6 +876,9 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	if parent != nil && profile == parent.Snapshot.Profile {
 		open.ProviderSettings = parent.ProviderSettings
 	}
+	// The person's "always allow" choices go on with the conversation: its
+	// new process holds them, and the menu still lists them.
+	open.Grants = record.Snapshot.Grants
 	eng, err := engine.NewDurable(b.ctx, adapter, open, spool, func(snapshot engine.Snapshot, settings json.RawMessage) error {
 		return b.History.SaveState(context.Background(), id, snapshot, settings)
 	}, func(a engine.Attachment) error { return b.saveAttachment(id, a) })
@@ -591,6 +892,7 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 		return nil, errors.Join(err, saveErr)
 	}
 	e.Engine = eng
+	b.watchTurns(e)
 	if _, err = spool.Append(map[string]any{"type": "execution_context", "workId": workID, "collectionId": collectionID, "previousExecutionId": previous, "cwd": cwd, "profile": profile, "model": options.Model, "permission": options.Permission, "conversationId": conversationID}); err != nil {
 		eng.Close()
 		return nil, err
@@ -603,17 +905,62 @@ func (b *Bench) open(profile, cwd, resume string, options accounts.Options, gate
 	}
 	b.items[id] = e
 	b.mu.Unlock()
+	if parent == nil {
+		b.announceAgentCLI(e)
+	}
 	return e, nil
 }
 
 func (b *Bench) Start(e *Execution, title string, argv []string) (*commands.Command, error) {
-	return b.start(e, title, argv, nil)
+	return b.start(e, title, argv, nil, false, "")
 }
-func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []string) (*commands.Command, error) {
+
+// StartForPerson starts a command the person confirmed in a conversation
+// (StartCommand, which only the owner may call). A read-only or plan
+// conversation does not refuse it: that mode bounds what the agent may do,
+// and the person could run the same command in a workspace terminal. An
+// assistant conversation has no workspace and still refuses. cwd, when set,
+// must be a directory inside the conversation's folder; empty is that folder.
+func (b *Bench) StartForPerson(e *Execution, title string, argv []string, cwd string) (*commands.Command, error) {
+	return b.start(e, title, argv, nil, true, cwd)
+}
+
+// commandDir resolves the folder a person's command runs in: the
+// conversation's own folder, or a directory inside it, symlinks resolved so a
+// link cannot lead outside.
+func commandDir(root, cwd string) (string, error) {
+	if cwd == "" {
+		return root, nil
+	}
+	if !filepath.IsAbs(cwd) {
+		return "", errors.New("the command folder must be an absolute path")
+	}
+	base, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("the conversation's folder cannot be resolved: %w", err)
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Clean(cwd))
+	if err != nil {
+		return "", fmt.Errorf("the command folder does not exist: %w", err)
+	}
+	if rel, err := filepath.Rel(base, dir); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", errors.New("the command folder must be inside the conversation's workspace")
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return "", errors.New("the command folder is not a directory")
+	}
+	return dir, nil
+}
+
+func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []string, person bool, cwd string) (*commands.Command, error) {
 	e.activity.Lock()
 	defer e.activity.Unlock()
-	if agent.IsAssistant(e.Purpose) || e.Options.Permission == "read-only" || e.Options.Workflow == "plan" {
+	if agent.IsAssistant(e.Purpose) || (!person && (e.Options.Permission == "read-only" || e.Options.Workflow == "plan")) {
 		return nil, errors.New("managed command start is disabled for read-only executions")
+	}
+	dir, err := commandDir(e.Cwd, cwd)
+	if err != nil {
+		return nil, err
 	}
 	if e.Engine != nil {
 		s := e.Engine.Snapshot()
@@ -628,14 +975,11 @@ func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []str
 			for _, p := range b.Profiles() {
 				if p.ID == id {
 					var err error
-					env, err = accounts.Resolve(p, os.Environ())
+					env, err = b.profileEnv(p)
 					if err != nil {
 						return nil, err
 					}
-					env = append(env, "LAZYBOX_V2_ENDPOINT="+b.Config.Endpoint, "LAZYBOX_V2_SESSION_ID="+e.ID)
-					if e.CollectionID != "" {
-						env = append(env, "LAZYBOX_V2_COLLECTION_ID="+e.CollectionID)
-					}
+					env = b.executionEnv(env, e.ID, e.CollectionID)
 				}
 			}
 		}
@@ -643,7 +987,7 @@ func (b *Bench) start(e *Execution, title string, argv []string, pinnedEnv []str
 	if pinnedEnv != nil {
 		env = pinnedEnv
 	}
-	return b.Commands.Start(commands.Spec{SessionID: e.ID, Title: title, Cwd: e.Cwd, Argv: argv, Env: env})
+	return b.Commands.Start(commands.Spec{SessionID: e.ID, Title: title, Cwd: dir, Argv: argv, Env: env})
 }
 
 func (b *Bench) RegisterPipe(e *Execution, title string) (*commands.Command, error) {
@@ -655,25 +999,92 @@ func (b *Bench) RegisterPipe(e *Execution, title string) (*commands.Command, err
 	return b.Commands.Register(commands.Spec{SessionID: e.ID, Title: title, Cwd: e.Cwd})
 }
 
+// withCommandEnv is a command's environment with the variables an agent asked
+// to add. The conversation's own credential and endpoint stay as they are.
+func withCommandEnv(base, pinned, extra []string) ([]string, error) {
+	if pinned != nil {
+		base = pinned
+	}
+	if len(extra) > 64 {
+		return nil, errors.New("at most 64 added environment variables")
+	}
+	set := map[string]string{}
+	order := []string{}
+	for _, entry := range base {
+		k, v, _ := strings.Cut(entry, "=")
+		if _, seen := set[k]; !seen {
+			order = append(order, k)
+		}
+		set[k] = v
+	}
+	for _, entry := range extra {
+		k, v, ok := strings.Cut(entry, "=")
+		if !ok || k == "" || strings.ContainsAny(k, "\x00") || strings.ContainsRune(v, 0) {
+			return nil, errors.New("environment entries are NAME=value")
+		}
+		if strings.HasPrefix(k, "LAZYBOX_") {
+			return nil, fmt.Errorf("%s belongs to Lazybox and cannot be set by an agent", k)
+		}
+		if _, seen := set[k]; !seen {
+			order = append(order, k)
+		}
+		set[k] = v
+	}
+	out := make([]string, 0, len(order))
+	for _, k := range order {
+		out = append(out, k+"="+set[k])
+	}
+	return out, nil
+}
+
 func (b *Bench) toolWithEnv(ctx context.Context, e *Execution, name string, args json.RawMessage, pinnedEnv []string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
+	}
+	if agent.BrowserTool(name) {
+		return b.browserTool(ctx, e, name, args)
 	}
 	if name != "lazybox_command" {
 		return "", agent.ErrUnsupported
 	}
 	var p struct {
-		Action string   `json:"action"`
-		Argv   []string `json:"argv"`
-		ID     string   `json:"id"`
-		Offset uint64   `json:"offset"`
+		Action  string   `json:"action"`
+		Argv    []string `json:"argv"`
+		ID      string   `json:"id"`
+		Offset  uint64   `json:"offset"`
+		Name    string   `json:"name"`
+		Restart bool     `json:"restart"`
+		// A start's console title, folder (inside the workspace) and added
+		// environment: what an ACP agent's terminal/create asks for.
+		Title string   `json:"title"`
+		Cwd   string   `json:"cwd"`
+		Env   []string `json:"env"`
+		// Limit bounds a tail, in bytes.
+		Limit int `json:"limit"`
 	}
 	if err := json.Unmarshal(args, &p); err != nil {
 		return "", err
 	}
 	var value any
-	if p.Action == "start" {
-		c, err := b.start(e, "agent command", p.Argv, pinnedEnv)
+	if p.Action == "actions" || p.Action == "start_action" {
+		v, err := b.agentAction(ctx, e, p.Action, p.Name, p.Restart)
+		if err != nil {
+			return "", err
+		}
+		value = v
+	} else if p.Action == "start" {
+		title := p.Title
+		if title == "" || len(title) > 512 {
+			title = "agent command"
+		}
+		env := pinnedEnv
+		if len(p.Env) > 0 {
+			var err error
+			if env, err = withCommandEnv(e.Env, pinnedEnv, p.Env); err != nil {
+				return "", err
+			}
+		}
+		c, err := b.start(e, title, p.Argv, env, false, p.Cwd)
 		if err != nil {
 			return "", err
 		}
@@ -693,6 +1104,20 @@ func (b *Bench) toolWithEnv(ctx context.Context, e *Execution, name string, args
 				return "", err
 			}
 			value = map[string]any{"output": string(data), "nextOffset": p.Offset + uint64(len(data)), "status": status}
+		case "tail":
+			// The latest output, at most limit bytes on a UTF-8 boundary, and
+			// whether earlier output was left out (ACP's terminal/output).
+			limit := p.Limit
+			if limit <= 0 || limit > 1<<20 {
+				limit = 1 << 20
+			}
+			data := c.Tail(ctx, limit+4)
+			status := c.Status()
+			truncated := status.Offset > uint64(len(data)) || len(data) > limit
+			for len(data) > limit || (len(data) > 0 && !utf8.RuneStart(data[0])) {
+				data = data[1:]
+			}
+			value = map[string]any{"output": string(data), "truncated": truncated, "status": status}
 		case "wait":
 			status, err := c.Wait(ctx)
 			if err != nil {
@@ -721,6 +1146,15 @@ func (b *Bench) Close() error { return b.shutdown(false) }
 // agent that cannot outlive the Runner is stopped as before.
 func (b *Bench) Detach() error { return b.shutdown(true) }
 
+// Stopping reports whether this Runner is shutting down. Its journals close
+// under their readers then, but a live conversation goes on in the next
+// Runner: the end of a reader's stream is not the end of the conversation.
+func (b *Bench) Stopping() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.closed
+}
+
 func (b *Bench) shutdown(detach bool) error {
 	b.closeOnce.Do(func() {
 		b.mu.Lock()
@@ -741,10 +1175,22 @@ func (b *Bench) shutdown(detach bool) error {
 			}
 		}
 		b.cancel()
+		if b.power.Extensions != nil {
+			// Open panels lose their pages and credentials with the Runner.
+			b.power.Extensions.Close()
+		}
+		if b.Browser != nil {
+			// The agent browser is the Runner's: it closes with it (BROWSER.md).
+			b.closeErr = errors.Join(b.closeErr, b.Browser.Close())
+		}
 		if b.GitHub != nil {
 			b.GitHub.Close()
 		}
 		b.starts.Wait()
+		b.trims.Wait()
+		b.agentCLI.stop()
+		b.checkpointing.Wait()
+		b.watchers.Wait()
 		for _, e := range b.List() {
 			// A no-op for a detached engine: its agent is the next Runner's.
 			b.closeErr = errors.Join(b.closeErr, e.Engine.Close())
@@ -753,6 +1199,13 @@ func (b *Bench) shutdown(detach bool) error {
 			b.closeErr = errors.Join(b.closeErr, b.Commands.Detach())
 		} else {
 			b.closeErr = errors.Join(b.closeErr, b.Commands.Close())
+		}
+		if b.Terminals != nil {
+			if detach {
+				b.closeErr = errors.Join(b.closeErr, b.Terminals.Detach())
+			} else {
+				b.closeErr = errors.Join(b.closeErr, b.Terminals.Close())
+			}
 		}
 		if b.Collections != nil {
 			for _, e := range b.List() {
@@ -770,6 +1223,7 @@ func (b *Bench) shutdown(detach bool) error {
 			b.closeErr = errors.Join(b.closeErr, e.spool.Dispose())
 		}
 		b.closeErr = errors.Join(b.closeErr, b.History.Close())
+		b.closeErr = errors.Join(b.closeErr, b.closeWork())
 		if b.Meter != nil {
 			b.closeErr = errors.Join(b.closeErr, b.Meter.Close())
 		}
@@ -850,6 +1304,6 @@ func (b *Bench) ReloadProfiles() error {
 		byID[p.ID] = p
 		next = append(next, p)
 	}
-	b.profiles = next
+	b.profiles = b.withACP(next)
 	return nil
 }

@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/AntoineToussaint/lazybox/v2/internal/runner/engine"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/titles"
 	_ "modernc.org/sqlite"
 )
 
@@ -59,7 +60,7 @@ func OpenSQLite(path string) (*SQLite, error) {
 		db.Close()
 		return fail(err)
 	}
-	if version > 3 {
+	if version > 5 {
 		db.Close()
 		return fail(errors.New("session database requires a newer Runner"))
 	}
@@ -79,6 +80,23 @@ func OpenSQLite(path string) (*SQLite, error) {
 	}
 	if version < 3 {
 		_, err = db.Exec(`BEGIN; CREATE TABLE deleted_attempts(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL); CREATE INDEX deleted_conversations ON deleted_attempts(conversation_id); PRAGMA user_version=3; COMMIT;`)
+		if err != nil {
+			db.Close()
+			return fail(err)
+		}
+	}
+	if version < 4 {
+		// A generated title is kept apart from the person's: a rename always wins.
+		_, err = db.Exec(`BEGIN; ALTER TABLE conversation_metadata ADD COLUMN generated TEXT NOT NULL DEFAULT ''; PRAGMA user_version=4; COMMIT;`)
+		if err != nil {
+			db.Close()
+			return fail(err)
+		}
+	}
+	if version < 5 {
+		// Pins and archive marks belong to the conversation, like its title,
+		// so every window and a paired phone see the same ones.
+		_, err = db.Exec(`BEGIN; ALTER TABLE conversation_metadata ADD COLUMN pinned_at INTEGER NOT NULL DEFAULT 0; ALTER TABLE conversation_metadata ADD COLUMN archived_at INTEGER NOT NULL DEFAULT 0; PRAGMA user_version=5; COMMIT;`)
 		if err != nil {
 			db.Close()
 			return fail(err)
@@ -140,6 +158,7 @@ func decode(row *sql.Row) (Record, error) {
 	}
 	var r Record
 	err = json.Unmarshal(data, &r)
+	resolveTitle(&r)
 	return r, err
 }
 func (s *SQLite) Get(ctx context.Context, id string) (Record, error) {
@@ -147,6 +166,27 @@ func (s *SQLite) Get(ctx context.Context, id string) (Record, error) {
 }
 func (s *SQLite) Successor(ctx context.Context, id string) (Record, error) {
 	return decode(s.db.QueryRowContext(ctx, selectedRecord+" WHERE a.previous=?", id))
+}
+func (s *SQLite) Amend(ctx context.Context, id string, change func(*Record)) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	r, err := decode(tx.QueryRowContext(ctx, "SELECT body FROM attempts WHERE id=?", id))
+	if err != nil {
+		return err
+	}
+	change(&r)
+	r.UpdatedAt = time.Now().UTC()
+	body, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, "UPDATE attempts SET body=? WHERE id=?", body, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 func (s *SQLite) SaveState(ctx context.Context, id string, state engine.Snapshot, settings json.RawMessage) error {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -171,7 +211,22 @@ func (s *SQLite) SaveState(ctx context.Context, id string, state engine.Snapshot
 	return tx.Commit()
 }
 
-const selectedRecord = `SELECT json_set(a.body, '$.UserTitle', COALESCE(m.title,''), '$.DisplayTitle', COALESCE(NULLIF(m.title,''), NULLIF(json_extract(root.body,'$.Snapshot.title'),''),json_extract(root.body,'$.Title'),'')) FROM attempts a LEFT JOIN conversation_metadata m ON m.id=a.conversation_id LEFT JOIN attempts root ON root.id=a.conversation_id`
+// shownTitle is a conversation's title in SQL, for search: the person's name
+// for it, else its generated title, else its first message's first line.
+const shownTitle = `COALESCE(NULLIF(m.title,''),NULLIF(m.generated,''),NULLIF(json_extract(root.body,'$.Snapshot.title'),''),json_extract(root.body,'$.Title'),'')`
+
+const selectedRecord = `SELECT json_set(a.body, '$.PinnedAt', COALESCE(m.pinned_at,0), '$.ArchivedAt', COALESCE(m.archived_at,0), '$.UserTitle', COALESCE(m.title,''), '$.GeneratedTitle', COALESCE(m.generated,''), '$.Opening', COALESCE(NULLIF(json_extract(root.body,'$.Snapshot.opening'),''),json_extract(root.body,'$.Snapshot.title'),''), '$.DisplayTitle', ` + shownTitle + `) FROM attempts a LEFT JOIN conversation_metadata m ON m.id=a.conversation_id LEFT JOIN attempts root ON root.id=a.conversation_id`
+
+// resolveTitle finishes DisplayTitle: a conversation titled only by its first
+// message shows titles.Fallback of it (a sentence or a cut at a word), never
+// the raw first line cut mid-word.
+func resolveTitle(r *Record) {
+	if r.UserTitle == "" && r.GeneratedTitle == "" && r.Opening != "" {
+		if title := titles.Fallback(r.Opening); title != "" {
+			r.DisplayTitle = title
+		}
+	}
+}
 
 func (s *SQLite) Identity(ctx context.Context) (string, error) {
 	var id string
@@ -195,6 +250,58 @@ func (s *SQLite) Rename(ctx context.Context, id, title string) error {
 	}
 	return err
 }
+
+// SetGeneratedTitle records a title generated for id's conversation. It never
+// touches the person's own name for it, which is shown instead when there is one.
+func (s *SQLite) SetGeneratedTitle(ctx context.Context, id, title string) error {
+	title = strings.TrimSpace(title)
+	if title == "" || !utf8.ValidString(title) || utf8.RuneCountInString(title) > 120 || strings.IndexFunc(title, unicode.IsControl) >= 0 {
+		return errors.New("generated title must contain 1..120 characters without controls")
+	}
+	result, err := s.db.ExecContext(ctx, `INSERT INTO conversation_metadata(id,title,generated) SELECT conversation_id,'',? FROM attempts WHERE id=? ON CONFLICT(id) DO UPDATE SET generated=excluded.generated`, title, id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return os.ErrNotExist
+	}
+	return err
+}
+
+// Pin keeps a conversation on top of the person's lists, or takes the pin
+// away. Like a title, it belongs to the conversation rather than one attempt,
+// and never touches execution state. Pinning a pinned conversation keeps its
+// first pin, so the order of pins is stable.
+func (s *SQLite) Pin(ctx context.Context, id string, pinned bool) error {
+	return s.mark(ctx, id, "pinned_at", pinned)
+}
+
+// Archive takes a conversation out of the person's working lists, or brings
+// it back. Its attempts and transcript stay, and History still lists it.
+func (s *SQLite) Archive(ctx context.Context, id string, archived bool) error {
+	return s.mark(ctx, id, "archived_at", archived)
+}
+
+// mark sets one of the conversation's metadata timestamps (a fixed column
+// name, never input) to now, keeping an earlier one, or clears it.
+func (s *SQLite) mark(ctx context.Context, id, column string, on bool) error {
+	at, update := int64(0), column+"=0"
+	if on {
+		at = time.Now().UTC().UnixMilli()
+		update = column + "=CASE WHEN conversation_metadata." + column + ">0 THEN conversation_metadata." + column + " ELSE excluded." + column + " END"
+	}
+	result, err := s.db.ExecContext(ctx, `INSERT INTO conversation_metadata(id,title,`+column+`) SELECT conversation_id,'',? FROM attempts WHERE id=? ON CONFLICT(id) DO UPDATE SET `+update, at, id)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err == nil && count == 0 {
+		return os.ErrNotExist
+	}
+	return err
+}
+
 func (s *SQLite) List(ctx context.Context, limit, offset int) ([]Record, error) {
 	return s.Query(ctx, Query{Limit: limit, Offset: offset})
 }
@@ -214,7 +321,7 @@ func (s *SQLite) Query(ctx context.Context, q Query) ([]Record, error) {
 		args = append(args, *q.Workspace)
 	}
 	if q.Search != "" {
-		where += ` AND instr(lower(COALESCE(NULLIF(m.title,''),NULLIF(json_extract(root.body,'$.Snapshot.title'),''),json_extract(root.body,'$.Title'),'')),lower(?))>0`
+		where += ` AND instr(lower(` + shownTitle + `),lower(?))>0`
 		args = append(args, q.Search)
 	}
 	args = append(args, limit, offset)
@@ -233,6 +340,7 @@ func (s *SQLite) Query(ctx context.Context, q Query) ([]Record, error) {
 		if err = json.Unmarshal(body, &r); err != nil {
 			return nil, err
 		}
+		resolveTitle(&r)
 		result = append(result, r)
 	}
 	return result, rows.Err()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,11 +30,19 @@ type session struct {
 	overrides       map[string]json.RawMessage
 	requests        map[string]pending
 	events          chan agent.Event
-	ctx             context.Context
-	cancel          context.CancelFunc
-	tools           func(context.Context, string, json.RawMessage) (string, error)
+	// ended is closed when read returns (the app-server exited, the Runner
+	// detached or closed): Receive then ends with why instead of waiting
+	// for events nothing will send.
+	ended   chan struct{}
+	why     error
+	ctx     context.Context
+	cancel  context.CancelFunc
+	tools   func(context.Context, string, json.RawMessage) (string, error)
+	purpose string
 	// responded: the user's responses to requests answered before a Runner restart.
 	responded map[string]agent.Operation
+	// titler names the conversation (title.go).
+	titler *titler
 }
 
 // GatewayArgs deliberately selects an HTTP Responses provider. Setting only
@@ -70,14 +79,14 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 		binary = "codex"
 	}
 	if o.Host != nil && o.Host.Attach != nil {
-		return attach(ctx, o)
+		return attach(ctx, o, binary)
 	}
 	gateway := o.Gateway
 	life, cancel := context.WithCancel(ctx)
 	var host *jsonl.Host
 	if o.Host != nil {
 		var err error
-		if host, err = jsonl.Launch(life, o.Host.Root); err != nil {
+		if host, err = jsonl.LaunchOn(life, o.Host.Backend, o.Host.Root, o.HostOptions("codex")); err != nil {
 			cancel()
 			return nil, err
 		}
@@ -110,7 +119,7 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	fail := func(err error) (agent.Session, error) { cancel(); p.Close(); return nil, err }
 	setup, done := context.WithTimeout(life, 30*time.Second)
 	defer done()
-	_, err = p.Call(setup, "initialize", map[string]any{"clientInfo": map[string]string{"name": "lazybox_v2_testbench", "title": "Lazybox V2 test bench", "version": "0.1.0"}, "capabilities": map[string]any{"experimentalApi": true}})
+	initialized, err := p.Call(setup, "initialize", map[string]any{"clientInfo": map[string]string{"name": "lazybox_v2_testbench", "title": "Lazybox V2 test bench", "version": "0.1.0"}, "capabilities": map[string]any{"experimentalApi": true}})
 	if err != nil {
 		return fail(err)
 	}
@@ -145,8 +154,8 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	if o.Resume != "" {
 		method = "thread/resume"
 		params["threadId"] = o.Resume
-	} else if o.Tools != nil {
-		params["dynamicTools"] = []any{map[string]any{"type": "function", "name": "lazybox_command", "description": "Start, read, wait for or cancel a runner-owned command. Output remains available to independent human consoles. Start requires human approval. Never repeat a start after receiving its command id.", "inputSchema": json.RawMessage(`{"type":"object","properties":{"action":{"type":"string","enum":["start","read","wait","cancel"]},"argv":{"type":"array","items":{"type":"string"}},"id":{"type":"string"},"offset":{"type":"integer","minimum":0}},"required":["action"],"additionalProperties":false}`)}}
+	} else if tools := dynamicTools(o.Purpose, o.Browser); o.Tools != nil && tools != nil {
+		params["dynamicTools"] = tools
 	}
 	result, err := p.Call(setup, method, params)
 	if err != nil {
@@ -167,7 +176,8 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 	if err = json.Unmarshal(result, &response); err != nil || response.Thread.ID == "" {
 		return fail(errors.New("Codex omitted native thread id"))
 	}
-	s := &session{p: p, ref: response.Thread.ID, model: response.Model, workflow: o.Workflow, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools}
+	s := &session{p: p, ref: response.Thread.ID, model: response.Model, workflow: o.Workflow, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), ended: make(chan struct{}), tools: o.Tools, purpose: o.Purpose}
+	s.titler = newTitler(binary, o, s.currentModel)
 	settings := map[string]json.RawMessage{}
 	for key, value := range map[string]json.RawMessage{"approvalPolicy": response.Approval, "approvalsReviewer": response.Reviewer, "sandboxPolicy": response.Sandbox} {
 		if len(value) > 0 && string(value) != "null" {
@@ -190,7 +200,19 @@ func (a Adapter) Open(ctx context.Context, o agent.Open) (agent.Session, error) 
 			_ = json.Unmarshal(model, &s.model)
 		}
 	}
+	// A Codex outside the tested range may break in ways no error reports
+	// (version.go): the conversation says so first, in one line.
+	if notice, untested := versionNotice(initialized); untested {
+		s.events <- notice
+	}
+	// The model Codex resolved for this thread, its own default included: the
+	// picker marks it from the start instead of none (a default has no id).
+	if ev, ok := readyEvent(s.model); ok {
+		s.events <- ev
+	}
 	go s.read()
+	// The models this subscription can switch to, for /model and the picker.
+	go s.reportModels()
 	return s, nil
 }
 
@@ -204,7 +226,8 @@ type durable struct {
 	Overrides map[string]json.RawMessage `json:"overrides,omitempty"`
 }
 
-// runTool runs an approved dynamic tool call and answers the app-server.
+// runTool runs an approved dynamic tool call and answers the app-server. An
+// empty request is a call that needed no approval, so nothing is resolved.
 func (s *session) runTool(native json.RawMessage, request, tool string, args json.RawMessage) {
 	if s.tools == nil {
 		s.replyTool(native, request, "managed commands unavailable", false)
@@ -212,29 +235,39 @@ func (s *session) runTool(native json.RawMessage, request, tool string, args jso
 	}
 	text, err := s.tools(s.ctx, tool, args)
 	if err != nil {
-		text = err.Error()
+		s.replyTool(native, request, err.Error(), false)
+		return
 	}
-	s.replyTool(native, request, text, err == nil)
+	if agent.BrowserTool(tool) {
+		s.replyItems(native, request, browserContent(text), true)
+		return
+	}
+	s.replyTool(native, request, text, true)
 }
 
 func (s *session) replyTool(native json.RawMessage, request, text string, success bool) {
-	err := s.p.Reply(native, map[string]any{"success": success, "contentItems": []any{map[string]string{"type": "inputText", "text": text}}})
-	if err == nil {
-		s.emit(agent.Event{Type: "request_resolved", RequestID: request, Status: "response_written"})
-	} else {
+	s.replyItems(native, request, []any{map[string]string{"type": "inputText", "text": text}}, success)
+}
+
+func (s *session) replyItems(native json.RawMessage, request string, items []any, success bool) {
+	err := s.p.Reply(native, map[string]any{"success": success, "contentItems": items})
+	switch {
+	case err != nil:
 		s.emit(agent.Event{Type: "failure", Status: "tool_reply_failed", Text: err.Error()})
+	case request != "":
+		s.emit(agent.Event{Type: "request_resolved", RequestID: request, Status: "response_written"})
 	}
 }
 
 const toolOutcomeUnknown = "The Runner restarted while this approved lazybox_command was running; its outcome is unknown. Inspect the workspace and command list before retrying."
 
-func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
+func attach(ctx context.Context, o agent.Open, binary string) (agent.Session, error) {
 	var state durable
 	if err := json.Unmarshal(o.Host.Attach.State, &state); err != nil || state.Host == "" {
 		return nil, errors.New("Codex session has no re-attachable host")
 	}
 	life, cancel := context.WithCancel(ctx)
-	p, err := jsonl.Attach(life, o.Host.Root, state.Host, o.Host.Attach.Cursor)
+	p, err := jsonl.AttachOn(life, o.Host.Backend, o.Host.Root, state.Host, o.Host.Attach.Cursor)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -246,7 +279,8 @@ func attach(ctx context.Context, o agent.Open) (agent.Session, error) {
 			return nil, err
 		}
 	}
-	s := &session{p: p, ref: o.Host.Attach.Reference, turn: state.Turn, model: state.Model, workflow: o.Workflow, settings: state.Settings, overrides: state.Overrides, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), tools: o.Tools, responded: o.Host.Attach.Responded}
+	s := &session{p: p, ref: o.Host.Attach.Reference, turn: state.Turn, model: state.Model, workflow: o.Workflow, settings: state.Settings, overrides: state.Overrides, ctx: life, cancel: cancel, requests: map[string]pending{}, events: make(chan agent.Event, 256), ended: make(chan struct{}), tools: o.Tools, purpose: o.Purpose, responded: o.Host.Attach.Responded}
+	s.titler = newTitler(binary, o, s.currentModel)
 	go s.read()
 	return s, nil
 }
@@ -275,6 +309,14 @@ func (s *session) Detach() error {
 	return err
 }
 
+// turnPolicies are the turn/start overrides for each permission mode, matching
+// the thread-level policies threadParams uses at start.
+var turnPolicies = map[string]map[string]json.RawMessage{
+	"yolo":      {"approvalPolicy": json.RawMessage(`"never"`), "sandboxPolicy": json.RawMessage(`{"type":"dangerFullAccess"}`), "approvalsReviewer": json.RawMessage(`"user"`)},
+	"ask":       {"approvalPolicy": json.RawMessage(`"untrusted"`), "sandboxPolicy": json.RawMessage(`{"type":"workspaceWrite"}`), "approvalsReviewer": json.RawMessage(`"user"`)},
+	"read-only": {"approvalPolicy": json.RawMessage(`"never"`), "sandboxPolicy": json.RawMessage(`{"type":"readOnly"}`), "approvalsReviewer": json.RawMessage(`"user"`)},
+}
+
 func threadParams(o agent.Open) map[string]any {
 	params := map[string]any{"cwd": o.Cwd}
 	// Omitted policies let app-server resolve the user's saved configuration
@@ -297,11 +339,16 @@ func threadParams(o agent.Open) map[string]any {
 }
 
 func (s *session) SessionSettings() json.RawMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return append(json.RawMessage(nil), s.settings...)
 }
 func (s *session) Reference() string { s.mu.Lock(); defer s.mu.Unlock(); return s.ref }
+
+// currentModel is the model of the conversation's next turn.
+func (s *session) currentModel() string { s.mu.Lock(); defer s.mu.Unlock(); return s.model }
 func (s *session) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Images: true, Files: true, Questions: s.workflow == "plan", Approvals: true, Steer: true, Resume: true, Subagents: true, ProfileIsolation: "environment; cross-account resume unverified"}
+	return agent.Capabilities{Images: true, Files: true, Questions: s.workflow == "plan", Approvals: true, Steer: true, Resume: true, Subagents: true, LivePermission: true, LiveModel: true, ProfileIsolation: "environment; cross-account resume unverified"}
 }
 func (s *session) emit(ev agent.Event) bool {
 	select {
@@ -313,11 +360,25 @@ func (s *session) emit(ev agent.Event) bool {
 }
 func inputs(op agent.Operation) []any {
 	items := []any{}
-	if text := agent.Prompt(op); text != "" {
-		items = append(items, map[string]any{"type": "text", "text": text})
+	// turn/start has no out-of-band context field, so an instruction update is
+	// its own input item ahead of the user's text.
+	if op.Context != "" {
+		items = append(items, map[string]any{"type": "text", "text": op.Context})
 	}
-	for _, img := range op.Images {
-		items = append(items, map[string]any{"type": "image", "url": "data:" + img.MediaType + ";base64," + img.Data})
+	// The person's text, then each attachment in order. turn/start takes text
+	// and images: a file's text is a fenced text item, any other file a text
+	// item naming the retained path, which Codex reads in its sandbox.
+	for _, part := range agent.Parts(op) {
+		switch part.Kind {
+		case agent.PartText:
+			items = append(items, map[string]any{"type": "text", "text": part.Text})
+		case agent.PartImage:
+			items = append(items, map[string]any{"type": "image", "url": "data:" + part.Image.MediaType + ";base64," + part.Image.Data})
+		case agent.PartFileText:
+			items = append(items, map[string]any{"type": "text", "text": agent.Inline(*part.File, part.Text)})
+		case agent.PartFileReference:
+			items = append(items, map[string]any{"type": "text", "text": agent.Reference(*part.File)})
+		}
 	}
 	return items
 }
@@ -368,16 +429,51 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 			r.ProviderID = response.Turn.ID
 		}
 		return r, nil
+	case agent.Permission:
+		policy, ok := turnPolicies[op.Permission]
+		if !ok {
+			return r, errors.New("permission must be ask, read-only or yolo")
+		}
+		// turn/start applies these "to this turn and subsequent turns"; keeping
+		// them in the overrides also carries them across a Runner restart.
+		s.mu.Lock()
+		if s.overrides == nil {
+			s.overrides = map[string]json.RawMessage{}
+		}
+		for key, value := range policy {
+			s.overrides[key] = value
+		}
+		s.mu.Unlock()
+		r.Delivery = "accepted"
+		return r, nil
+	case agent.Model:
+		model, err := json.Marshal(op.Model)
+		if err != nil || op.Model == "" {
+			return r, errors.New("model required")
+		}
+		// turn/start takes the model "for this turn and subsequent turns"; the
+		// overrides carry it to the next one and across a Runner restart.
+		s.mu.Lock()
+		if s.overrides == nil {
+			s.overrides = map[string]json.RawMessage{}
+		}
+		s.overrides["model"] = model
+		s.model = op.Model
+		// A same-provider handoff carries the model now in force.
+		var settings map[string]json.RawMessage
+		if json.Unmarshal(s.settings, &settings) == nil && settings != nil {
+			settings["model"] = model
+			s.settings, _ = json.Marshal(settings)
+		}
+		s.mu.Unlock()
+		r.Delivery = "accepted"
+		return r, nil
 	case agent.Answer, agent.Approve:
 		s.mu.Lock()
 		p, ok := s.requests[op.RequestID]
 		if !ok || p.answered {
 			s.mu.Unlock()
 			return r, errors.New("unknown or already answered native request")
-		}
-		if p.message.Method == "item/permissions/requestApproval" && op.Decision == "accept" {
-			s.mu.Unlock()
-			return r, agent.ErrUnsupported
 		}
 		p.answered = true
 		s.requests[op.RequestID] = p
@@ -386,25 +482,48 @@ func (s *session) Apply(ctx context.Context, op agent.Operation) (agent.Receipt,
 			if op.Decision == "accept" {
 				go s.runTool(p.message.ID, op.RequestID, p.tool, p.args)
 			} else {
-				go s.replyTool(p.message.ID, op.RequestID, "Command declined", false)
+				declined := toolDeclined(p.tool)
+				if op.Reason != "" {
+					declined += " The user said: " + op.Reason
+				}
+				go s.replyTool(p.message.ID, op.RequestID, declined, false)
 			}
 			r.Delivery = "submitted"
 			return r, nil
 		}
-		response, err := nativeResponse(p.message.Method, op)
+		response, err := nativeResponse(p.message.Method, p.message.Params, op)
 		if err != nil {
+			s.mu.Lock()
+			p.answered = false
+			s.requests[op.RequestID] = p
+			s.mu.Unlock()
 			return r, err
 		}
-		err = s.p.Reply(p.message.ID, response)
+		if err = s.p.Reply(p.message.ID, response); err != nil {
+			return r, err
+		}
 		r.Delivery = "submitted"
-		return r, err
+		if op.Kind == agent.Approve && op.Decision == "decline" && op.Reason != "" {
+			// The native decline has no text: the reason reaches the agent in
+			// the same turn, as the user's own words.
+			var scope struct {
+				ThreadID string `json:"threadId"`
+				TurnID   string `json:"turnId"`
+			}
+			_ = json.Unmarshal(p.message.Params, &scope)
+			steer := map[string]any{"threadId": scope.ThreadID, "expectedTurnId": scope.TurnID, "input": []any{map[string]any{"type": "text", "text": declineNote(p.message.Method, p.message.Params, op.Reason)}}}
+			if _, err = s.p.Call(ctx, "turn/steer", steer); err != nil {
+				r.Error = "declined; the reason could not be delivered: " + err.Error()
+			}
+		}
+		return r, nil
 	default:
 		return r, agent.ErrUnsupported
 	}
 }
 
 // nativeResponse is the app-server reply to a native approval or question.
-func nativeResponse(method string, op agent.Operation) (any, error) {
+func nativeResponse(method string, params json.RawMessage, op agent.Operation) (any, error) {
 	if op.Kind == agent.Answer {
 		answers := map[string]any{}
 		for k, v := range op.Answers {
@@ -412,13 +531,31 @@ func nativeResponse(method string, op agent.Operation) (any, error) {
 		}
 		return map[string]any{"answers": answers}, nil
 	}
-	if method == "item/permissions/requestApproval" {
-		if op.Decision == "accept" {
-			return nil, errors.New("permission-subset grants require a supported explicit grant UI")
+	if method == permissionsMethod {
+		// PermissionsRequestApprovalResponse: the access granted, for this
+		// turn or (always) the rest of the conversation. A decline grants
+		// nothing. Accepting grants exactly what was asked, never more.
+		if op.Decision != "accept" {
+			return map[string]any{"permissions": map[string]any{}, "scope": "turn"}, nil
 		}
-		return map[string]any{"permissions": map[string]any{}}, nil
+		granted, _ := requestedAccess(params)
+		if granted == nil {
+			return nil, fmt.Errorf("%w: this request asks for no access Lazybox can grant", agent.ErrUnsupported)
+		}
+		scope := "turn"
+		if op.Always != "" {
+			if op.Always != "session" {
+				return nil, fmt.Errorf("%w: this request does not offer %q", agent.ErrUnsupported, op.Always)
+			}
+			scope = "session"
+		}
+		return map[string]any{"permissions": granted, "scope": scope}, nil
 	}
-	return map[string]any{"decision": op.Decision}, nil
+	decision, err := approvalDecision(method, params, op)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"decision": decision}, nil
 }
 
 func requestID(raw json.RawMessage) string {
@@ -456,37 +593,53 @@ func (s *session) read() {
 		phases[ev.AgentID] = key
 		emit(ev)
 	}
+	// noted: methods whose unreadable params were already recorded once.
+	noted := map[string]bool{}
+	// The main thread's context in use, from its latest token usage, and the
+	// turns whose compaction was already said (compaction.go).
+	compactions := compactionState{}
 	for {
 		m, err := s.p.Receive(s.ctx)
 		cursor = m.Seq
 		if err != nil {
-			if s.ctx.Err() == nil && !errors.Is(err, jsonl.ErrDetached) {
-				emit(agent.Event{Type: "failure", Status: "provider_process_exit", Text: err.Error()})
+			// Only an exit is the process ending: a lost connection to its
+			// session host is the Runner's (the stream's end says it), and
+			// re-attaching may find the process still running.
+			if s.ctx.Err() == nil && errors.Is(err, agent.ErrProcessExited) {
+				emit(agent.Event{Type: "failure", Status: agent.ProcessExitFault, Text: err.Error()})
 				flush()
 			}
+			s.end(err)
 			return
 		}
-		ok := func() bool {
-			var p struct {
-				WillRetry bool `json:"willRetry"`
-				Error     struct {
-					Code json.RawMessage `json:"codexErrorInfo"`
-				} `json:"error"`
-				ThreadID  string          `json:"threadId"`
-				TurnID    string          `json:"turnId"`
-				RequestID json.RawMessage `json:"requestId"`
-				Delta     string          `json:"delta"`
-				Turn      struct {
-					ID     string          `json:"id"`
-					Status string          `json:"status"`
-					Error  json.RawMessage `json:"error"`
-				} `json:"turn"`
-				Tool      string          `json:"tool"`
-				Arguments json.RawMessage `json:"arguments"`
+		// fields reads what one method promises into v. The app-server has
+		// many notifications this adapter ignores, and some reuse a field
+		// name with another type (account/login/completed's error is a
+		// string): params are read per method, and a line whose fields are
+		// not what its method promises is skipped, never the end of
+		// supervision. Its first occurrence per method is recorded.
+		fields := func(v any) bool {
+			err := json.Unmarshal(m.Params, v)
+			if err == nil {
+				return true
 			}
-			if err = json.Unmarshal(m.Params, &p); err != nil {
-				emit(agent.Event{Type: "failure", Status: "protocol_error", Text: err.Error()})
-				return false
+			if !noted[m.Method] {
+				noted[m.Method] = true
+				emit(agent.Event{Type: agent.UnreadableEvent, Text: "Skipped a Codex " + m.Method + " message Lazybox could not read: " + err.Error()})
+			}
+			return false
+		}
+		func() {
+			var p struct {
+				ThreadID string `json:"threadId"`
+				TurnID   string `json:"turnId"`
+			}
+			if !fields(&p) {
+				if len(m.ID) > 0 {
+					// The app-server waits for an answer to a request.
+					_ = s.p.Reject(m.ID, "unreadable request params")
+				}
+				return
 			}
 			root := s.Reference()
 			ev := agent.Event{SessionID: p.ThreadID, TurnID: p.TurnID, AgentID: actorID(p.ThreadID, root)}
@@ -502,75 +655,109 @@ func (s *session) read() {
 				// the app-server.
 				response, answered := s.responded[id]
 				answered = answered && m.Redelivered
+				// call is a dynamic tool call's own fields; empty for other requests.
+				var call struct {
+					Tool      string          `json:"tool"`
+					Arguments json.RawMessage `json:"arguments"`
+				}
 				switch m.Method {
-				case "item/commandExecution/requestApproval", "item/fileChange/requestApproval", "item/permissions/requestApproval":
+				case "item/commandExecution/requestApproval", "item/fileChange/requestApproval", permissionsMethod:
 					ev.Type = "approval"
 					ev.Text = m.Method
+					ev.Data = withAlways(m.Method, m.Params)
 				case "item/tool/requestUserInput", "tool/requestUserInput":
 					ev.Type = "question"
 				case "item/tool/call":
-					if p.Tool != "lazybox_command" {
-						_ = s.p.Reject(m.ID, "unknown dynamic tool")
-						return true
+					if !fields(&call) {
+						_ = s.p.Reject(m.ID, "unreadable dynamic tool call")
+						return
 					}
+					if !toolOffered(s.purpose, call.Tool) {
+						_ = s.p.Reject(m.ID, "unknown dynamic tool")
+						return
+					}
+					title := toolApproval(call.Tool)
 					switch {
+					case title == "":
+						// Only reads: there is nothing to approve.
+						go s.runTool(m.ID, "", call.Tool, call.Arguments)
+						return
 					case !answered:
 					case response.Decision != "" && response.Decision != "accept":
 						// Declined: nothing ran, so the decline is simply repeated.
-						go s.replyTool(m.ID, id, "Command declined", false)
-						return true
-					case agent.ToolReplaySafe(p.Tool, p.Arguments):
-						// Only inspects a command that outlived the Runner: run it again.
-						go s.runTool(m.ID, id, p.Tool, p.Arguments)
-						return true
+						go s.replyTool(m.ID, id, toolDeclined(call.Tool), false)
+						return
+					case agent.ToolReplaySafe(call.Tool, call.Arguments):
+						// Running it again cannot repeat an effect: run it again.
+						go s.runTool(m.ID, id, call.Tool, call.Arguments)
+						return
 					default:
 						// Approved (or recorded without its decision): the command
 						// may already have run.
 						_ = s.p.Reply(m.ID, map[string]any{"success": false, "contentItems": []any{map[string]string{"type": "inputText", "text": toolOutcomeUnknown}}})
 						emit(agent.Event{Type: "request_resolved", RequestID: id, Status: "outcome_unknown_after_restart"})
-						return true
+						return
 					}
 					ev.Type = "approval"
-					ev.Text = "Run managed command tool"
+					ev.Text = title
 				default:
 					_ = s.p.Reject(m.ID, "unsupported server request")
 					emit(agent.Event{Type: "unsupported_request", Text: m.Method, Data: m.Params})
-					return true
+					return
 				}
-				if answered && p.Tool == "" && (response.Kind == agent.Answer || response.Decision != "") {
+				if answered && call.Tool == "" && (response.Kind == agent.Answer || response.Decision != "") {
 					// The app-server acts only once it has the reply, so the
 					// user's recorded response is given again rather than asked anew.
-					if reply, err := nativeResponse(m.Method, response); err == nil && s.p.Reply(m.ID, reply) == nil {
-						return true
+					if reply, err := nativeResponse(m.Method, m.Params, response); err == nil && s.p.Reply(m.ID, reply) == nil {
+						return
 					}
 				}
 				s.mu.Lock()
-				s.requests[id] = pending{message: m, tool: p.Tool, args: p.Arguments}
+				s.requests[id] = pending{message: m, tool: call.Tool, args: call.Arguments}
 				s.mu.Unlock()
 				emit(ev)
-				return true
+				return
 			}
 			switch m.Method {
 			case "turn/started":
+				var turn struct {
+					Turn struct {
+						ID string `json:"id"`
+					} `json:"turn"`
+				}
+				if !fields(&turn) {
+					return
+				}
 				ev.Type = "turn_started"
-				ev.TurnID = p.Turn.ID
+				ev.TurnID = turn.Turn.ID
 				s.mu.Lock()
 				if ev.AgentID == "root" {
-					s.turn = p.Turn.ID
+					s.turn = turn.Turn.ID
 				}
 				s.mu.Unlock()
 			case "turn/completed":
+				var turn struct {
+					Turn struct {
+						ID     string          `json:"id"`
+						Status string          `json:"status"`
+						Error  json.RawMessage `json:"error"`
+					} `json:"turn"`
+				}
+				if !fields(&turn) {
+					return
+				}
 				ev.Type = "turn_ended"
-				ev.TurnID = p.Turn.ID
-				ev.Status = p.Turn.Status
-				ev.Data = p.Turn.Error
-				if p.Turn.Status == "failed" && len(p.Turn.Error) > 0 && string(p.Turn.Error) != "null" {
+				ev.TurnID = turn.Turn.ID
+				ev.Status = turn.Turn.Status
+				ev.Data = turn.Turn.Error
+				if turn.Turn.Status == "failed" && len(turn.Turn.Error) > 0 && string(turn.Turn.Error) != "null" {
 					failure := ev
 					failure.Type = "failure"
-					failure.Account = errorObservation(p.Turn.Error)
+					failure.Account = errorObservation(turn.Turn.Error)
 					failure.Status = failure.Account.State
 					emit(failure)
 				}
+				var over []json.RawMessage
 				s.mu.Lock()
 				if ev.AgentID == "root" {
 					s.turn = ""
@@ -580,21 +767,48 @@ func (s *session) read() {
 					_ = json.Unmarshal(request.message.Params, &scope)
 					if scope.ThreadID == p.ThreadID {
 						delete(s.requests, id)
+						over = append(over, request.message.ID)
 					}
 				}
 				s.mu.Unlock()
+				// The turn ended without these being answered: the app-server
+				// no longer waits on them, so the host must not redeliver them
+				// to a later Runner as if it did.
+				for _, id := range over {
+					_ = s.p.Resolve(id)
+				}
 			case "item/reasoning/summaryTextDelta", "item/reasoning/textDelta":
 				ev.Type, ev.Status = "activity", "thinking"
 				ev.Data = nil // Activity only; never expose private reasoning text.
 			case "item/agentMessage/delta":
+				var delta struct {
+					Delta string `json:"delta"`
+				}
+				if !fields(&delta) {
+					return
+				}
 				ev.Type = "message_delta"
-				ev.Text = p.Delta
+				ev.Text = delta.Delta
 			case "serverRequest/resolved":
+				var resolved struct {
+					RequestID json.RawMessage `json:"requestId"`
+				}
+				if !fields(&resolved) {
+					return
+				}
 				ev.Type = "request_resolved"
-				ev.RequestID = requestID(p.RequestID)
+				ev.RequestID = requestID(resolved.RequestID)
 				s.mu.Lock()
+				native := resolved.RequestID
+				if request, ok := s.requests[ev.RequestID]; ok {
+					native = request.message.ID
+				}
 				delete(s.requests, ev.RequestID)
 				s.mu.Unlock()
+				// The app-server resolved it itself (another client answered,
+				// or it was cancelled): the host forgets it, so a later Runner
+				// is not shown an approval nobody waits on.
+				_ = s.p.Resolve(native)
 			case "account/rateLimits/updated":
 				ev.Type = "capacity_observation"
 				ev.Account = rateLimits(m.Params)
@@ -602,23 +816,64 @@ func (s *session) read() {
 			case "thread/tokenUsage/updated":
 				ev.Type = "usage"
 				ev.Data = m.Params
+				if ev.AgentID == "root" {
+					compactions.usage(m.Params)
+					// Codex's usage names no model: the one in force does, so the
+					// session reports what it runs on (metering's LatestModel).
+					ev.Data = withModel(m.Params, s.currentModel())
+				}
+			case "thread/compacted":
+				// Deprecated for the contextCompaction item; said once either way.
+				if ev.AgentID != "root" || !compactions.first(p.TurnID) {
+					return
+				}
+				ev.Type, ev.Data = "compacted", compactions.data()
 			case "error":
+				var failure struct {
+					WillRetry bool `json:"willRetry"`
+					Error     struct {
+						Code json.RawMessage `json:"codexErrorInfo"`
+					} `json:"error"`
+				}
+				if !fields(&failure) {
+					return
+				}
 				ev.Type = "failure"
 				ev.Status = "unknown"
-				detail, _ := json.Marshal(p.Error)
+				detail, _ := json.Marshal(failure.Error)
 				ev.Account = errorObservation(detail)
 				ev.Status = ev.Account.State
-				if p.WillRetry {
+				if failure.WillRetry {
 					ev.Type = "provider_retry"
 				}
 				ev.Data = m.Params
 			case "thread/status/changed":
 				ev.Type, ev.Status = "agent_status", threadStatus(m.Params)
 			case "thread/started":
-				return true
+				return
+			case "turn/plan/updated":
+				// The agent's plan, as a tool call of its turn: each update
+				// replaces the one checklist the conversation shows.
+				ev.Type = "tool_activity"
+				if ev.Data = planToolCall(m.Params); len(ev.Data) == 0 {
+					return
+				}
 			case "item/started", "item/completed":
 				for _, activity := range collaborationEvents(m.Params, root) {
 					emit(activity)
+				}
+				if compactionItem(m.Params) {
+					// The context compaction Claude's conversations show too:
+					// a phase while it runs, then one line.
+					if m.Method == "item/started" {
+						activity(agent.Event{Type: "activity", AgentID: ev.AgentID, Status: "compacting"})
+						return
+					}
+					if ev.AgentID != "root" || !compactions.first(p.TurnID) {
+						return
+					}
+					ev.Type, ev.Data = "compacted", compactions.data()
+					break
 				}
 				ev.Type = "tool_activity"
 				ev.Status = "running"
@@ -649,14 +904,14 @@ func (s *session) read() {
 					activity(agent.Event{Type: "activity", AgentID: ev.AgentID, Status: phase, Name: name})
 				}
 				if len(ev.Data) == 0 {
-					return true
+					return
 				}
 			default:
-				return true
+				return
 			}
 			if ev.Type == "activity" {
 				activity(ev)
-				return true
+				return
 			}
 			if ev.Type == "message_delta" {
 				phases[ev.AgentID] = "responding/"
@@ -665,22 +920,43 @@ func (s *session) read() {
 				delete(phases, ev.AgentID)
 			}
 			emit(ev)
-			return true
+			return
 		}()
-		if !flush() || !ok {
+		if !flush() {
+			s.end(s.ctx.Err())
 			return
 		}
 	}
 }
+
+// end records why read stopped and ends Receive once the events read sent
+// before it are taken. The events channel is never closed: tool replies
+// still running may send to it, and give up on the cancelled context.
+func (s *session) end(why error) {
+	if why == nil {
+		why = errors.New("Codex connection closed")
+	}
+	s.why = why
+	close(s.ended)
+}
+
 func (s *session) Receive(ctx context.Context) (agent.Event, error) {
 	select {
-	case e, ok := <-s.events:
-		if !ok {
-			return e, errors.New("Codex connection closed")
-		}
+	case e := <-s.events:
 		return e, nil
 	case <-ctx.Done():
 		return agent.Event{}, ctx.Err()
+	case <-s.ended:
+		// What read sent before it stopped (its failure, say) comes first.
+		select {
+		case e := <-s.events:
+			return e, nil
+		default:
+		}
+		return agent.Event{}, fmt.Errorf("Codex app-server stream ended: %w", s.why)
 	}
 }
 func (s *session) Close() error { err := s.p.Close(); s.cancel(); return err }
+
+// HostID is the session host running the app-server, or "" for a local pipe.
+func (s *session) HostID() string { return s.p.HostID() }

@@ -44,6 +44,9 @@ on:
   push:
     tags:
       - '**[0-9]+.[0-9]+.[0-9]+*'
+      # V2 releases (`v2-v<x.y.z>`, .github/workflows/v2-release.yml) also end
+      # in a version; they are not V1 releases.
+      - '!v2-v**'
   # Manual dry-run: builds + signs + notarizes but skips the release upload
   # and cask push, so signing can be validated without cutting a tag.
   workflow_dispatch:

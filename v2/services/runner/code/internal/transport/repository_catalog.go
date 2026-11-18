@@ -2,6 +2,10 @@ package transport
 
 import (
 	"context"
+	"errors"
+
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner"
+	"github.com/AntoineToussaint/lazybox/v2/internal/runner/collections"
 	pb "github.com/AntoineToussaint/lazybox/v2/pkg/gen"
 	"google.golang.org/grpc"
 )
@@ -20,12 +24,48 @@ func (s *Service) GetRepositoryCatalog(ctx context.Context, r *pb.GetRepositoryC
 	}
 	return out, nil
 }
-func (s *Service) PrepareWorkspace(r *pb.PrepareWorkspaceRequest, stream grpc.ServerStreamingServer[pb.WorkspacePreparation]) error {
-	workspace, err := s.Bench.PrepareWorkspace(stream.Context(), r.RequestKey, r.CollectionId, r.Name, r.RepositoryIdentities, func(id, message string) error {
-		return stream.Send(&pb.WorkspacePreparation{Identity: id, Message: message})
-	})
+
+// ListRepositoryBranches answers New task's "Start from" picker (start_from.go).
+func (s *Service) ListRepositoryBranches(ctx context.Context, r *pb.ListRepositoryBranchesRequest) (*pb.RepositoryBranches, error) {
+	out, err := s.Bench.RepositoryBranches(ctx, r.RepositoryIdentity, r.Remote)
 	if err != nil {
+		return nil, rpcError(err)
+	}
+	return out, nil
+}
+
+func (s *Service) PrepareWorkspace(r *pb.PrepareWorkspaceRequest, stream grpc.ServerStreamingServer[pb.WorkspacePreparation]) error {
+	progress := func(id, message string) error {
+		return stream.Send(&pb.WorkspacePreparation{Identity: id, Message: message})
+	}
+	var workspace collections.Collection
+	var err error
+	if r.RepositoryRequestId != "" {
+		// The person answers an agent's request: the same addition, then the agent is told.
+		workspace, err = s.Bench.AddRequestedRepositories(stream.Context(), r.RequestKey, r.CollectionId, r.RepositoryRequestId, r.RepositoryIdentities, r.StartFrom, progress)
+	} else if r.Item != nil && r.CollectionId == "" {
+		// A new workspace started from a work item: the item is its origin (items_search.go).
+		workspace, err = s.Bench.PrepareWorkspaceFromItem(stream.Context(), r.RequestKey, r.Name, r.Branch, r.RepositoryIdentities, r.StartFrom, r.Item, progress)
+	} else {
+		workspace, err = s.Bench.PrepareWorkspaceFrom(stream.Context(), r.RequestKey, r.CollectionId, r.Name, r.Branch, r.RepositoryIdentities, r.StartFrom, progress)
+	}
+	if err != nil {
+		// The client's error card offers replacing Lazybox's copy, then retries.
+		var replaced *runner.RepositoryReplaced
+		if errors.As(err, &replaced) {
+			_ = stream.Send(&pb.WorkspacePreparation{Identity: replaced.Identity, Replaced: &pb.RepositoryReplacement{Identity: replaced.Identity, Name: replaced.Name, HasCopy: replaced.HasCopy}})
+		}
 		return rpcError(err)
 	}
 	return stream.Send(&pb.WorkspacePreparation{Message: "Ready", Collection: wireCollection(workspace)})
+}
+
+// RefreshRepositoryIdentity replaces Lazybox's copy of a repository whose
+// history changed on GitHub; without confirm, says what that changes.
+func (s *Service) RefreshRepositoryIdentity(ctx context.Context, r *pb.RefreshRepositoryIdentityRequest) (*pb.RepositoryIdentityRefresh, error) {
+	refresh, err := s.Bench.RefreshRepositoryIdentity(ctx, r.Identity, r.Confirm, nil)
+	if err != nil {
+		return nil, rpcError(err)
+	}
+	return &pb.RepositoryIdentityRefresh{Identity: refresh.Identity, Name: refresh.Name, Reason: refresh.Reason, HasCopy: refresh.HasCopy, Workspaces: refresh.Workspaces, Replaced: refresh.Replaced, RepositoryId: refresh.RepositoryID}, nil
 }

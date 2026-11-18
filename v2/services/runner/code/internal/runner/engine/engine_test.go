@@ -153,3 +153,102 @@ func TestViewerCancellationDoesNotCancelExecution(t *testing.T) {
 		t.Fatal("viewer closed execution")
 	}
 }
+
+// A provider error ends one turn; the person's next message continues the
+// conversation instead of leaving it unable to send anything.
+func TestNextMessageContinuesAfterAProviderErrorEndsATurn(t *testing.T) {
+	e, s := bench(t, false)
+	ctx := contextFor(t)
+	if _, err := e.Apply(ctx, agent.Operation{ID: "first", Kind: agent.Message, Text: "look at this image"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = applied(t, s)
+	s.Events <- agent.Event{Type: "failure", Status: "provider_error", Text: "Could not process image"}
+	s.Events <- agent.Event{Type: "turn_ended", Status: "failed"}
+	await(t, e, "turn_ended")
+	if e.Snapshot().Fault == "" {
+		t.Fatal("the provider error was not recorded")
+	}
+	if _, err := e.Apply(ctx, agent.Operation{ID: "interrupt", Kind: agent.Interrupt}); err == nil {
+		t.Fatal("only a message may continue after a provider error")
+	}
+	if _, err := e.Apply(ctx, agent.Operation{ID: "second", Kind: agent.Message, Text: "try again without it"}); err != nil {
+		t.Fatalf("next message refused after a provider error: %v", err)
+	}
+	if op := applied(t, s); op.ID != "second" {
+		t.Fatalf("delivered %q", op.ID)
+	}
+	if fault := e.Snapshot().Fault; fault != "" {
+		t.Fatalf("fault kept after continuing: %q", fault)
+	}
+}
+
+func TestRunnerFaultsStillRefuseMessages(t *testing.T) {
+	for _, fault := range []string{"provider delivery failed; reconcile before continuing", "event capture failed: disk", "native_exit_unconfirmed", "provider startup failed", "provider_process_exit", "sdk_error"} {
+		if agent.TurnFault(fault) {
+			t.Fatalf("%q treated as a turn fault", fault)
+		}
+	}
+	for _, fault := range []string{"provider_error", "provider_failure", "invalid_request"} {
+		if !agent.TurnFault(fault) {
+			t.Fatalf("%q not treated as a turn fault", fault)
+		}
+	}
+}
+
+func TestStopAgentStopsOneRunningSubAgentByItsNativeID(t *testing.T) {
+	ctx := contextFor(t)
+	open := func(stop bool) (*Engine, *agenttest.Session) {
+		spool, err := journal.Open(filepath.Join(t.TempDir(), "session"), 1<<20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a := &agenttest.Adapter{StopAgent: stop}
+		e, err := New(context.Background(), a, agent.Open{ID: "execution", Profile: "pinned-profile"}, spool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = e.Close(); _ = spool.Dispose() })
+		return e, a.Session
+	}
+	unsupported, _ := open(false)
+	if _, err := unsupported.Apply(ctx, agent.Operation{ID: "stop", Kind: agent.StopAgent, AgentID: "claude-tool:a"}); err != agent.ErrUnsupported {
+		t.Fatalf("a provider that cannot stop one sub-agent must refuse: %v", err)
+	}
+	e, s := open(true)
+	if _, err := e.Apply(ctx, agent.Operation{ID: "root", Kind: agent.StopAgent, AgentID: "root"}); err == nil {
+		t.Fatal("the main agent is interrupted, not stopped as a sub-agent")
+	}
+	if _, err := e.Apply(ctx, agent.Operation{ID: "missing", Kind: agent.StopAgent, AgentID: "claude-tool:missing"}); err == nil {
+		t.Fatal("an unknown sub-agent was stopped")
+	}
+	s.Events <- agent.Event{Type: "agent_status", AgentID: "claude-tool:a", ParentAgentID: "root", NativeID: "task-a", Status: "running"}
+	s.Events <- agent.Event{Type: "agent_status", AgentID: "claude-tool:b", ParentAgentID: "root", NativeID: "task-b", Status: "done"}
+	for e.Snapshot().Agents["claude-tool:b"].Status != agent.Done {
+		select {
+		case <-ctx.Done():
+			t.Fatal("agent status never observed")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	if _, err := e.Apply(ctx, agent.Operation{ID: "done", Kind: agent.StopAgent, AgentID: "claude-tool:b"}); err == nil {
+		t.Fatal("a finished sub-agent was stopped")
+	}
+	// No turn is running: a background sub-agent can still be stopped.
+	if _, err := e.Apply(ctx, agent.Operation{ID: "stop", Kind: agent.StopAgent, AgentID: "claude-tool:a"}); err != nil {
+		t.Fatal(err)
+	}
+	op := applied(t, s)
+	if op.Kind != agent.StopAgent || op.AgentID != "claude-tool:a" || op.NativeID != "task-a" {
+		t.Fatalf("stop delivered as %+v", op)
+	}
+	// The same operation identity is answered once, without a second stop.
+	if _, err := e.Apply(ctx, agent.Operation{ID: "stop", Kind: agent.StopAgent, AgentID: "claude-tool:a"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case again := <-s.Applied:
+		t.Fatalf("stop delivered twice: %+v", again)
+	case <-time.After(20 * time.Millisecond):
+	}
+}
