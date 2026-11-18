@@ -366,7 +366,7 @@ rules, FILE_SAME_GO_PACKAGE included, in force.
   ci:
     name: ci
 ` },
-  { file: '.github/workflows/ci.yml', find: 'needs: [plan, go, generated, typescript, desktop, ui]', replace: 'needs: [plan, go, generated, typescript, desktop, ui, typos]' },
+  { file: '.github/workflows/ci.yml', find: 'needs: [plan, go, go-linux, generated, typescript, desktop, ui]', replace: 'needs: [plan, go, go-linux, generated, typescript, desktop, ui, typos]' },
   { file: '.github/workflows/ci.yml', find: '- name: Every V2 job passed', replace: '- name: Every job passed' },
   { file: '.github/actions/playwright/action.yml', find: "# Installs the Playwright browsers V2's suites launch, cached per OS, browser\n# set and Playwright version (read from v2's installed @playwright/test, so a", replace: "# Installs the Playwright browsers the UI suites launch, cached per OS, browser\n# set and Playwright version (read from the installed @playwright/test, so a" },
   { file: '.github/actions/playwright/action.yml', find: 'name: v2-playwright\ndescription: Install and cache Playwright browsers for v2.', replace: 'name: playwright\ndescription: Install and cache Playwright browsers for the UI suites.' },
