@@ -17,6 +17,7 @@ import { AppearanceSync } from './appearance/AppearanceSync';
 import { UserThemeSync } from './appearance/useUserThemes';
 import { consolePlace, followConsole, noteConsoleUse, readFollowRuns, useRunFollowing } from './console-follow';
 import { requestTerminal } from './TerminalPanel';
+import { writeWhenReady } from './home-shell';
 import { AccountNotices } from './AccountNotices';
 import { groups, retireMonitor, defaultLayout, emptyTarget, parseLayout, resolveTarget, detachedFor, pinnedTarget, defaultDock, isDockSide, showPanel, dedupeChats, repairLayout, returnDetached, detachedChats, showCodePanel, adoptGeometry, allPanels, shownPanels, activatePanel, removeFromPage, insertDocked, mapPageGroups, mapPagePanels, groupOf, splitBeside, addToGroup, detachChat, sidebarKinds, pageGroups, fitAgentsEverywhere, isSidebarAgents, sidebarAgentsGroup, PANEL_LIMIT, settleLayout, sameConversation, tabFor, withSelection, closeTab, keepTab, previewTab, followFrontTab, isChatTab, openConversation, type DockSide, type SidebarAgents, type Panel, type ViewTarget, type WorkspaceLayout, type WorkspacePage } from './workspace-model';
 import { useConversationTabs, useTabsSetting } from './useConversationTabs';
@@ -459,10 +460,11 @@ function WorkspaceView({ modules, fixedWorkspaceId, viewState, initialTarget = e
     const target = workspaceID || collections.find(c => c.state === 'ready')?.id || '';
     if (!target) throw new Error(`Create a workspace first: the shell runs in one. Or run this in a terminal: ${command}`);
     const terminal = await api.openTerminal({ collectionId: target, directory: '', cols: 100, rows: 30, requestKey: crypto.randomUUID() });
-    await api.writeTerminal({ terminalId: terminal.id, data: new TextEncoder().encode(command + '\r') });
     requestTerminal(target, terminal.id);
     showPanelFor('terminal', { collectionId: target, sessionId: '', commandId: '' });
     setSettings(false);
+    // Written once the shell can read it: earlier, the terminal echoes it and the prompt shows it again.
+    await writeWhenReady(api, target, terminal.id, command + '\r');
   };
   /** Show the panel of this kind for target: its workspace and conversation first, then the panel. */
   const showPanelFor = (kind: string, requested?: RunnerTarget) => {

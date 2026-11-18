@@ -180,11 +180,14 @@ a login) is offered, at most three, never one the agent says it ran or one for
 later. The command is kept exactly (`env -u VAR`, every argument; in a fenced
 `sh` block too), less a leading `cd` into another absolute folder (a temporary
 checkout the home replaces, whose name also picks the repository). A click
-opens a shell there in the Terminal panel (a real PTY: logins and browser
-sign-ins work, which an agent's commands, without a TTY, cannot do) and types
-the command at the prompt; it never runs by itself. The ⌄ beside it offers the
-other places, the person's own terminal app (`open` at the folder, the command
-copied) and Copy. A repository without a home gets one first ("Create api home
+runs it in a shell there in the Terminal panel (a real PTY: logins and browser
+sign-ins work, which an agent's commands, without a TTY, cannot do): the shell
+already open there when it is idle at its prompt, else a new one, once that
+shell can read input ([terminals](TERMINALS.md#run-a-command-for-you)). A
+script of several lines or a command with a placeholder is typed at the
+prompt instead, for the person to review and run with Return. The ⌄ beside it
+offers **Paste in terminal (don't run)**, the other places, the person's own
+terminal app (`open` at the folder, the command copied) and Copy. A repository without a home gets one first ("Create api home
 and run"). A global tool's login (`gcloud`, `aws`, `gh`…) goes to the home
 folder. When the shell's command-end mark arrives (`TerminalStatus.command_ends`,
 see [command output](COMMAND_OUTPUT.md)), the button says *Finished · exit N*

@@ -1915,6 +1915,16 @@ message TerminalStatus {
   // window learns that a command it typed for the person finished.
   uint64 command_ends = 18;
   int32 last_command_status = 19;
+  // The shell says when its prompt is ready for input (zsh with Lazybox's
+  // integration). Without it, a window waits for the output to settle.
+  bool prompt_marks = 20;
+  // How many times the shell said its line editor reads a new command line
+  // (OSC 133;B). Input written before the first one is echoed, then shown
+  // again at the prompt: a window types only after it.
+  uint64 prompts_ready = 21;
+  // The shell waits at a prompt, in the folder it started in, with nothing
+  // running: a window may type a command into it rather than open another.
+  bool idle = 22;
 }
 message ListTerminalsRequest {
   string collection_id = 1;

@@ -13612,8 +13612,18 @@ type TerminalStatus struct {
 	// window learns that a command it typed for the person finished.
 	CommandEnds       uint64 `protobuf:"varint,18,opt,name=command_ends,json=commandEnds,proto3" json:"command_ends,omitempty"`
 	LastCommandStatus int32  `protobuf:"varint,19,opt,name=last_command_status,json=lastCommandStatus,proto3" json:"last_command_status,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// The shell says when its prompt is ready for input (zsh with Lazybox's
+	// integration). Without it, a window waits for the output to settle.
+	PromptMarks bool `protobuf:"varint,20,opt,name=prompt_marks,json=promptMarks,proto3" json:"prompt_marks,omitempty"`
+	// How many times the shell said its line editor reads a new command line
+	// (OSC 133;B). Input written before the first one is echoed, then shown
+	// again at the prompt: a window types only after it.
+	PromptsReady uint64 `protobuf:"varint,21,opt,name=prompts_ready,json=promptsReady,proto3" json:"prompts_ready,omitempty"`
+	// The shell waits at a prompt, in the folder it started in, with nothing
+	// running: a window may type a command into it rather than open another.
+	Idle          bool `protobuf:"varint,22,opt,name=idle,proto3" json:"idle,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TerminalStatus) Reset() {
@@ -13777,6 +13787,27 @@ func (x *TerminalStatus) GetLastCommandStatus() int32 {
 		return x.LastCommandStatus
 	}
 	return 0
+}
+
+func (x *TerminalStatus) GetPromptMarks() bool {
+	if x != nil {
+		return x.PromptMarks
+	}
+	return false
+}
+
+func (x *TerminalStatus) GetPromptsReady() uint64 {
+	if x != nil {
+		return x.PromptsReady
+	}
+	return 0
+}
+
+func (x *TerminalStatus) GetIdle() bool {
+	if x != nil {
+		return x.Idle
+	}
+	return false
 }
 
 type ListTerminalsRequest struct {
@@ -35790,7 +35821,7 @@ const file_api_proto_rawDesc = "" +
 	"\tuser_home\x18\a \x01(\bR\buserHome\"2\n" +
 	"\x0fTerminalRequest\x12\x1f\n" +
 	"\vterminal_id\x18\x01 \x01(\tR\n" +
-	"terminalId\"\xb2\x04\n" +
+	"terminalId\"\x8e\x05\n" +
 	"\x0eTerminalStatus\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12#\n" +
 	"\rcollection_id\x18\x02 \x01(\tR\fcollectionId\x12\x1c\n" +
@@ -35811,7 +35842,10 @@ const file_api_proto_rawDesc = "" +
 	"\rrepository_id\x18\x10 \x01(\tR\frepositoryId\x12\x10\n" +
 	"\x03cwd\x18\x11 \x01(\tR\x03cwd\x12!\n" +
 	"\fcommand_ends\x18\x12 \x01(\x04R\vcommandEnds\x12.\n" +
-	"\x13last_command_status\x18\x13 \x01(\x05R\x11lastCommandStatusB\f\n" +
+	"\x13last_command_status\x18\x13 \x01(\x05R\x11lastCommandStatus\x12!\n" +
+	"\fprompt_marks\x18\x14 \x01(\bR\vpromptMarks\x12#\n" +
+	"\rprompts_ready\x18\x15 \x01(\x04R\fpromptsReady\x12\x12\n" +
+	"\x04idle\x18\x16 \x01(\bR\x04idleB\f\n" +
 	"\n" +
 	"_exit_code\";\n" +
 	"\x14ListTerminalsRequest\x12#\n" +
